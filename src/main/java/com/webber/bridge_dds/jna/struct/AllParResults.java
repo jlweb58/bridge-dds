@@ -1,4 +1,4 @@
-package com.webber.bridge_dds;
+package com.webber.bridge_dds.jna.struct;
 
 import com.sun.jna.Structure;
 

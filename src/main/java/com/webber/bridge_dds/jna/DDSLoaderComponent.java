@@ -1,4 +1,4 @@
-package com.webber.bridge_dds;
+package com.webber.bridge_dds.jna;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;

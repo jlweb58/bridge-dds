@@ -1,4 +1,4 @@
-package com.webber.bridge_dds;
+package com.webber.bridge_dds.jna.struct;
 
 import com.sun.jna.Structure;
 
@@ -11,12 +11,9 @@ public class DDTableDealsPBN extends Structure {
     public static final int DEALS_SIZE = MAXNOOFTABLES * DDS_STRAINS; // 200
 
     public int noOfTables;
-    public DDTableDealPBN[] deals = new DDTableDealPBN[DEALS_SIZE];
+    public DDTableDealPBN[] deals = (DDTableDealPBN[]) new DDTableDealPBN().toArray(DEALS_SIZE);
 
     public DDTableDealsPBN() {
-        for (int i = 0; i < deals.length; i++) {
-            deals[i] = new DDTableDealPBN();
-        }
     }
 
     @Override

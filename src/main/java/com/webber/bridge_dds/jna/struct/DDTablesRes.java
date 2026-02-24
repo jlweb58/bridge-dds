@@ -1,4 +1,4 @@
-package com.webber.bridge_dds;
+package com.webber.bridge_dds.jna.struct;
 
 import com.sun.jna.Structure;
 
@@ -18,4 +18,10 @@ public class DDTablesRes extends Structure {
     protected List<String> getFieldOrder() {
         return List.of("noOfBoards", "results");
     }
+
+    /** In this DDS API, this is the number of denomination×declarer entries produced (often 20). */
+    public int getCombinationCount() {
+        return noOfBoards;
+    }
+
 }
