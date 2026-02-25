@@ -5,11 +5,10 @@ import com.webber.bridge_dds.jna.struct.ParResults;
 import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.Deal;
 import com.webber.bridge_dds.model.Denomination;
-import com.webber.bridge_dds.model.DoubleDummyResult;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.parser.DealParsers;
-import com.webber.bridge_dds.service.DdsResultConverter;
 import com.webber.bridge_dds.service.DdsService;
+import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,11 +20,6 @@ import java.util.Map;
 @RestController
 public class DdsController {
 
-    private static final String[] PBN = {
-            "N:QJ6.K652.J85.T98 873.J97.AT764.Q4 K5.T83.KQ9.A7652 AT942.AQ4.32.KJ3",
-            "E:QJT5432.T.6.QJ82 .J97543.K7532.94 87.A62.QJT4.AT75 AK96.KQ8.A98.K63",
-            "N:73.QJT.AQ54.T752 QT6.876.KJ9.AQ84 5.A95432.7632.K6 AKJ9842.K.T8.J93"
-    };
     private final DdsService ddsService;
 
     public DdsController(DdsService ddsService) {
@@ -47,6 +41,16 @@ public class DdsController {
         Deal deal = toDeal(request);
         String pbn = DealParsers.toPbn(deal);
 
+        return getDdsAnalyzeResponse(pbn);
+    }
+
+    @PostMapping("/dds/analyze-pbn")
+    public DdsAnalyzeResponse analyzePbn(@RequestBody DdsPbnAnalyzeRequest request) {
+        String pbn = request.pbn();
+        return getDdsAnalyzeResponse(pbn);
+    }
+
+    private @NonNull DdsAnalyzeResponse getDdsAnalyzeResponse(String pbn) {
         int[] trumpFilter = new int[5]; // 0 = any
         DdsService.DDSResult raw = ddsService.calculateFromPbn(pbn, 0, trumpFilter);
 
@@ -71,33 +75,6 @@ public class DdsController {
 
         return new DdsAnalyzeResponse(pbn, raw.returnCode, tricks, par);
     }
-    @GetMapping("/test-ds")
-    public String testDds(int hand) {
-
-        if (hand < 0 || hand >= PBN.length) {
-            throw new IllegalArgumentException("hand must be 0.." + (PBN.length - 1));
-        }
-
-
-
-        int[] trumpFilter = new int[5]; // 0 = any
-
-        DdsService.DDSResult result = ddsService.calculateFromPbn(PBN[hand], 0, trumpFilter);
-
-        String[] denom = {"S", "H", "D", "C", "NT"};
-        String[] decl = {"N", "E", "S", "W"};
-
-        System.out.println("noOfBoards=" + result.results.noOfBoards);
-
-        DDTableResults table = result.results.results[0];
-        for (int d = 0; d < 5; d++) {
-            for (int p = 0; p < 4; p++) {
-                System.out.println("denom=" + denom[d] + " declarer=" + decl[p] + " tricks=" + table.get(d, p));
-            }
-        }
-        return "DDS returned code: " + result.returnCode
-                + ", first table res[0][0]: " + result.results.results[0].get(0, 0);
-    }
 
     private static Deal toDeal(DdsAnalyzeRequest request) {
         if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
@@ -118,7 +95,7 @@ public class DdsController {
                             HttpStatus.BAD_REQUEST,
                             "Invalid card for " + p + ": " + code + " (" + ex.getMessage() + ")"
                     );
-                }7
+                }
             }
         }
 
