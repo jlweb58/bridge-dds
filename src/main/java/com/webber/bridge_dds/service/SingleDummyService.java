@@ -69,6 +69,13 @@ public class SingleDummyService {
             if (!known.contains(c)) unknown.add(c);
         }
 
+        int ddsStrainIndex = req.contract().denomination().ddsIndex();
+        int ddsDeclarerIndex = declarerToDdsHandIndex(declarer);
+
+        int[] trumpFilter = {1, 1, 1, 1, 1};
+        trumpFilter[ddsStrainIndex] = 0; // compute only this denomination (verify behavior in your DDS build)
+
+
         long seed = (req.seed() != null) ? req.seed() : System.nanoTime();
         Random master = new Random(seed);
 
@@ -98,7 +105,8 @@ public class SingleDummyService {
                         declarerToDdsHandIndex(declarer),
                         neededTricks,
                         declarerCards,
-                        dummyCards
+                        dummyCards,
+                        trumpFilter
                 );
 
                 futures.add(executor.submit(task));
@@ -137,7 +145,8 @@ public class SingleDummyService {
             int ddsDeclarerIndex,
             int neededTricks,
             List<Card> declarerCards,
-            List<Card> dummyCards
+            List<Card> dummyCards,
+            int[] trumpFilter
     ) throws InterruptedException {
         Random rng = new Random(seed);
 
@@ -163,7 +172,6 @@ public class SingleDummyService {
 
         ddsConcurrencyGate.acquire();
         try {
-            int[] trumpFilter = new int[5];
             DdsService.DDSBatchResult raw = ddsService.calculateFromPbnBatch(pbns, 0, trumpFilter);
             if (raw.returnCode() != 1) {
                 throw new ResponseStatusException(
