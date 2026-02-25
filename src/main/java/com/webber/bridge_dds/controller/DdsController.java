@@ -8,6 +8,7 @@ import com.webber.bridge_dds.model.Denomination;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.parser.DealParsers;
 import com.webber.bridge_dds.service.DdsService;
+import com.webber.bridge_dds.service.SingleDummyService;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -22,8 +23,11 @@ public class DdsController {
 
     private final DdsService ddsService;
 
-    public DdsController(DdsService ddsService) {
+    private final SingleDummyService singleDummyService;
+
+    public DdsController(DdsService ddsService, SingleDummyService singleDummyService) {
         this.ddsService = ddsService;
+        this.singleDummyService = singleDummyService;
     }
 
     /**
@@ -50,22 +54,27 @@ public class DdsController {
         return getDdsAnalyzeResponse(pbn);
     }
 
+    @PostMapping("/dds/single-dummy")
+    public SingleDummyAnalyzeResponse singleDummy(@RequestBody SingleDummyAnalyzeRequest request) {
+        return singleDummyService.analyze(request);
+    }
+
     private @NonNull DdsAnalyzeResponse getDdsAnalyzeResponse(String pbn) {
         int[] trumpFilter = new int[5]; // 0 = any
         DdsService.DDSResult raw = ddsService.calculateFromPbn(pbn, 0, trumpFilter);
 
-        if (raw.returnCode != 1) {
+        if (raw.returnCode() != 1) {
             // DDS uses a set of return codes; treat anything non-success as server error for now.
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
-                    "DDS CalcAllTablesPBN failed with return code " + raw.returnCode
+                    "DDS CalcAllTablesPBN failed with return code " + raw.returnCode()
             );
         }
 
-        DDTableResults table = raw.results.results[0];
+        DDTableResults table = raw.results().results[0];
         Map<Denomination, Map<Player, Integer>> tricks = toTricksMap(table);
 
-        ParResults par0 = raw.parResults.presults[0];
+        ParResults par0 = raw.parResults().presults[0];
         DdsAnalyzeResponse.ParView par = new DdsAnalyzeResponse.ParView(
                 par0.getParScore(0),
                 par0.getParScore(1),
@@ -73,7 +82,7 @@ public class DdsController {
                 par0.getParContractsString(1)
         );
 
-        return new DdsAnalyzeResponse(pbn, raw.returnCode, tricks, par);
+        return new DdsAnalyzeResponse(pbn, raw.returnCode(), tricks, par);
     }
 
     private static Deal toDeal(DdsAnalyzeRequest request) {
