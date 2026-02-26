@@ -3,6 +3,7 @@ package com.webber.bridge_dds.service;
 import com.webber.bridge_dds.controller.SingleDummyAnalyzeRequest;
 import com.webber.bridge_dds.controller.SingleDummyAnalyzeResponse;
 import com.webber.bridge_dds.jna.struct.DDTableResults;
+import com.webber.bridge_dds.jna.struct.DDTableDealsPBN;
 import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.Deal;
 import com.webber.bridge_dds.model.Player;
@@ -20,20 +21,13 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 
 @Service
 public class SingleDummyService {
 
-    private static final int DDS_BATCH_SIZE = 40;
+    private static final int DDS_BATCH_SIZE = DDTableDealsPBN.MAXNOOFTABLES;
 
     private final DdsService ddsService;
-
-    /**
-     * DDS may or may not be thread-safe depending on build/options.
-     * Start conservatively with 1; raise once verified.
-     */
-    private final Semaphore ddsConcurrencyGate = new Semaphore(1);
 
     public SingleDummyService(DdsService ddsService) {
         this.ddsService = ddsService;
@@ -70,7 +64,6 @@ public class SingleDummyService {
         }
 
         int ddsStrainIndex = req.contract().denomination().ddsIndex();
-        int ddsDeclarerIndex = declarerToDdsHandIndex(declarer);
 
         int[] trumpFilter = {1, 1, 1, 1, 1};
         trumpFilter[ddsStrainIndex] = 0; // compute only this denomination (verify behavior in your DDS build)
@@ -88,10 +81,7 @@ public class SingleDummyService {
                 int batchStart = b * DDS_BATCH_SIZE;
                 int batchCount = Math.min(DDS_BATCH_SIZE, samples - batchStart);
 
-                long batchSeed;
-                synchronized (master) {
-                    batchSeed = master.nextLong();
-                }
+                long batchSeed = master.nextLong();
 
                 Callable<BatchOutcome> task = () -> runBatch(
                         batchCount,
@@ -101,7 +91,7 @@ public class SingleDummyService {
                         dummy,
                         defenders[0],
                         defenders[1],
-                        req.contract().denomination().ddsIndex(),
+                        ddsStrainIndex,
                         declarerToDdsHandIndex(declarer),
                         neededTricks,
                         declarerCards,
@@ -113,12 +103,20 @@ public class SingleDummyService {
             }
 
             int successes = 0;
-            Map<Integer, Integer> histogram = new HashMap<>();
+            int[] combinedHistogram = new int[14];
 
             for (Future<BatchOutcome> f : futures) {
                 BatchOutcome o = f.get();
                 successes += o.successes();
-                o.histogram().forEach((k, v) -> histogram.merge(k, v, Integer::sum));
+                int[] h = o.histogram();
+                for (int i = 0; i < h.length; i++) {
+                    combinedHistogram[i] += h[i];
+                }
+            }
+
+            Map<Integer, Integer> histogram = new HashMap<>();
+            for (int i = 0; i < combinedHistogram.length; i++) {
+                if (combinedHistogram[i] != 0) histogram.put(i, combinedHistogram[i]);
             }
 
             double p = successes / (double) samples;
@@ -147,31 +145,42 @@ public class SingleDummyService {
             List<Card> declarerCards,
             List<Card> dummyCards,
             int[] trumpFilter
-    ) throws InterruptedException {
+    ) {
         Random rng = new Random(seed);
 
         List<String> pbns = new ArrayList<>(batchCount);
 
-        for (int i = 0; i < batchCount; i++) {
-            List<Card> shuffled = new ArrayList<>(unknownDeck);
-            java.util.Collections.shuffle(shuffled, rng);
+        // Convert unknown deck to array once and prepare permutation buffer
+        Card[] unknownArr = unknownDeck.toArray(new Card[0]);
+        int m = unknownArr.length;
+        int[] perm = new int[m];
 
-            List<Card> def1Cards = shuffled.subList(0, 13);
-            List<Card> def2Cards = shuffled.subList(13, 26);
+        for (int i = 0; i < batchCount; i++) {
+            // initialize permutation
+            for (int k = 0; k < m; k++) perm[k] = k;
+
+            // Fisher-Yates shuffle on indices
+            for (int k = m - 1; k > 0; k--) {
+                int j = rng.nextInt(k + 1);
+                int tmp = perm[k];
+                perm[k] = perm[j];
+                perm[j] = tmp;
+            }
 
             Deal deal = new Deal();
             deal.setFirst(Player.NORTH); // arbitrary; DDS just needs consistent seat assignments
 
             for (Card c : declarerCards) deal.give(declarer, c);
             for (Card c : dummyCards) deal.give(dummy, c);
-            for (Card c : def1Cards) deal.give(def1, c);
-            for (Card c : def2Cards) deal.give(def2, c);
+
+            // give first 13 permuted cards to def1
+            for (int k = 0; k < 13; k++) deal.give(def1, unknownArr[perm[k]]);
+            // next 13 to def2
+            for (int k = 13; k < 26; k++) deal.give(def2, unknownArr[perm[k]]);
 
             pbns.add(DealParsers.toPbn(deal));
         }
 
-        ddsConcurrencyGate.acquire();
-        try {
             DdsService.DDSBatchResult raw = ddsService.calculateFromPbnBatch(pbns, 0, trumpFilter);
             if (raw.returnCode() != 1) {
                 throw new ResponseStatusException(
@@ -181,19 +190,18 @@ public class SingleDummyService {
             }
 
             int successes = 0;
-            Map<Integer, Integer> histogram = new HashMap<>();
+            int[] histogram = new int[14];
 
             for (int i = 0; i < batchCount; i++) {
                 DDTableResults table = raw.results().results[i];
                 int tricks = table.get(ddsStrainIndex, ddsDeclarerIndex);
-                histogram.merge(tricks, 1, Integer::sum);
+                if (tricks < 0) tricks = 0; // defensive, but DDS should return 0..13
+                if (tricks > 13) tricks = 13;
+                histogram[tricks]++;
                 if (tricks >= neededTricks) successes++;
             }
 
             return new BatchOutcome(successes, histogram);
-        } finally {
-            ddsConcurrencyGate.release();
-        }
     }
 
 
@@ -265,6 +273,6 @@ public class SingleDummyService {
         return new SingleDummyAnalyzeResponse.ConfidenceInterval95(low, high);
     }
 
-    private record BatchOutcome(int successes, Map<Integer, Integer> histogram) { }
+    private record BatchOutcome(int successes, int[] histogram) { }
 
 }

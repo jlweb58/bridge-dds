@@ -10,6 +10,6 @@ class DDSLoaderComponent {
     @PostConstruct
     public void init() {
         System.out.println("DDS loaded: " + DDS.INSTANCE);
-    }
+        }
 }
 
