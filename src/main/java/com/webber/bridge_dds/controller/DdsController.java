@@ -19,6 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
+@CrossOrigin(origins = "http://localhost:4201",
+allowedHeaders = "*",
+methods = { org.springframework.web.bind.annotation.RequestMethod.POST,
+org.springframework.web.bind.annotation.RequestMethod.OPTIONS }
+)
 public class DdsController {
 
     private final DdsService ddsService;
