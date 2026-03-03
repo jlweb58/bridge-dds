@@ -8,6 +8,7 @@ import com.webber.bridge_dds.jna.struct.DDTablesRes;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Semaphore;
