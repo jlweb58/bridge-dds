@@ -38,6 +38,10 @@ public class SingleDummyService {
         validate(req);
 
         int samples = req.samples();
+        // protect the server from attack via a high number of samples
+        if (samples > 2000) {
+            samples = 2000;
+        }
         int neededTricks = req.contract().level() + 6;
 
         Player declarer = req.declarer();
