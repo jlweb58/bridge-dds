@@ -2,11 +2,16 @@ package com.webber.bridge_dds.parser;
 
 import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.Deal;
+import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.model.Rank;
 import com.webber.bridge_dds.model.Suit;
+import com.webber.bridge_dds.service.HandEvaluator;
 
 public class DealParsers {
+
+    private static final    HandEvaluator handEvaluator = new HandEvaluator();
+
     private DealParsers() {}
 
     public static Deal fromPbn(String pbn) {
@@ -88,6 +93,9 @@ public class DealParsers {
         putSuit(deal, player, Suit.HEARTS, suits[1]);
         putSuit(deal, player, Suit.DIAMONDS, suits[2]);
         putSuit(deal, player, Suit.CLUBS, suits[3]);
+        Hand thisPlayerHand = deal.hand(player);
+        thisPlayerHand.setEvaluation(handEvaluator.evaluate(thisPlayerHand));
+
     }
 
     private static void putSuit(Deal deal, Player player, Suit suit, String ranks) {

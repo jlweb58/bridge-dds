@@ -1,5 +1,8 @@
 package com.webber.bridge_dds.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -10,18 +13,21 @@ public class Hand {
 
     private final Map<Suit, EnumSet<Rank>> cards = new EnumMap<>(Suit.class);
 
+    @Getter
+    @Setter
+    private double evaluation = 0.0;
+
     public Hand() {
         for (Suit s : Suit.values()) {
             cards.put(s, EnumSet.noneOf(Rank.class));
         }
     }
 
-    public void add(Card card) {
+    public Hand add(Card card) {
+        if (this.size() >= 13) throw new IllegalStateException("Hand is full");
+        if (contains(card)) throw new IllegalArgumentException("Hand already contains " + card);
         cards.get(card.suit()).add(card.rank());
-    }
-
-    public void remove(Card card) {
-        cards.get(card.suit()).remove(card.rank());
+        return this;
     }
 
     public boolean contains(Card card) {
@@ -34,7 +40,13 @@ public class Hand {
         return total;
     }
 
-    /** Read-only view for JSON/debugging/inspection. */
+    public EnumSet<Rank> ranksForSuit(Suit suit) {
+        return cards.get(suit);
+    }
+
+    /**
+     * Read-only view for JSON/debugging/inspection.
+     */
     public Map<Suit, Set<Rank>> view() {
         Map<Suit, Set<Rank>> out = new EnumMap<>(Suit.class);
         for (Suit s : Suit.values()) {

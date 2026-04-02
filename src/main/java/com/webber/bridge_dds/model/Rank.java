@@ -22,6 +22,19 @@ public enum Rank {
     this.pbn = pbn;
   }
 
+  public double points() {
+      return switch (this) {
+          case ACE -> 4.0;
+          case KING -> 3.0;
+          case QUEEN -> 2.0;
+          case JACK -> 1.0;
+          case TEN -> 0.5;
+          default -> 0.0;
+      };
+  }
+
+
+
   public char toPbnChar() {
     return pbn;
   }
