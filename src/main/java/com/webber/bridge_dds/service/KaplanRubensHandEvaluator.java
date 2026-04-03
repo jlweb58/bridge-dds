@@ -8,7 +8,7 @@ import com.webber.bridge_dds.model.Suit;
 import java.util.List;
 import java.util.Set;
 
-public class HandEvaluator {
+public class KaplanRubensHandEvaluator {
 
     public Hand fromStringList(List<String> codes) {
         Hand hand = new Hand();

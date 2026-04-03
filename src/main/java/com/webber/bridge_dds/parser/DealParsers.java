@@ -6,11 +6,11 @@ import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.model.Rank;
 import com.webber.bridge_dds.model.Suit;
-import com.webber.bridge_dds.service.HandEvaluator;
+import com.webber.bridge_dds.service.KaplanRubensHandEvaluator;
 
 public class DealParsers {
 
-    private static final    HandEvaluator handEvaluator = new HandEvaluator();
+    private static final KaplanRubensHandEvaluator KAPLAN_RUBENS_HAND_EVALUATOR = new KaplanRubensHandEvaluator();
 
     private DealParsers() {}
 
@@ -94,7 +94,7 @@ public class DealParsers {
         putSuit(deal, player, Suit.DIAMONDS, suits[2]);
         putSuit(deal, player, Suit.CLUBS, suits[3]);
         Hand thisPlayerHand = deal.hand(player);
-        thisPlayerHand.setEvaluation(handEvaluator.evaluate(thisPlayerHand));
+        thisPlayerHand.setEvaluation(KAPLAN_RUBENS_HAND_EVALUATOR.evaluate(thisPlayerHand));
 
     }
 
