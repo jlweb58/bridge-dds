@@ -8,7 +8,7 @@ import com.webber.bridge_dds.model.Suit;
 import java.util.List;
 import java.util.Set;
 
-public class KaplanRubensHandEvaluator {
+public class KaplanRubensHandEvaluator extends AbstractHandEvaluator {
 
     public Hand fromStringList(List<String> codes) {
         Hand hand = new Hand();
@@ -16,14 +16,11 @@ public class KaplanRubensHandEvaluator {
         return hand;
     }
 
+    @Override
     public double evaluate(Hand hand) {
-        double points = 0.0;
-        points += evaluateSuit(hand, Suit.SPADES);
-        points += evaluateSuit(hand, Suit.HEARTS);
-        points += evaluateSuit(hand, Suit.DIAMONDS);
-        points += evaluateSuit(hand, Suit.CLUBS);
+        double points = super.evaluate(hand);
 
-        points = points -1;
+        points -= 1;
         if (is4_3_3_3_Distribution(hand)) {
             points += 0.5;
         }
@@ -39,7 +36,8 @@ public class KaplanRubensHandEvaluator {
                 .equals(List.of(3, 3, 3, 4));
     }
 
-    private double evaluateSuit(Hand hand, Suit suit) {
+    @Override
+    protected double evaluateSuit(Hand hand, Suit suit) {
         double points;
         Set<Rank> ranks = hand.ranksForSuit(suit);
         points = ranks.stream().mapToDouble(Rank::points).sum();
