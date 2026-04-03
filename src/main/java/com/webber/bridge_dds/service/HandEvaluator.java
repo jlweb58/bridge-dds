@@ -1,5 +1,6 @@
 package com.webber.bridge_dds.service;
 
+import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Rank;
 import com.webber.bridge_dds.model.Suit;
@@ -8,6 +9,12 @@ import java.util.List;
 import java.util.Set;
 
 public class HandEvaluator {
+
+    public Hand fromStringList(List<String> codes) {
+        Hand hand = new Hand();
+        codes.stream().map(Card::fromCode).forEach(hand::add);
+        return hand;
+    }
 
     public double evaluate(Hand hand) {
         double points = 0.0;

@@ -5,9 +5,11 @@ import com.webber.bridge_dds.jna.struct.ParResults;
 import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.Deal;
 import com.webber.bridge_dds.model.Denomination;
+import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.parser.DealParsers;
 import com.webber.bridge_dds.service.DdsService;
+import com.webber.bridge_dds.service.HandEvaluator;
 import com.webber.bridge_dds.service.SingleDummyService;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,8 @@ public class DdsController {
     private final DdsService ddsService;
 
     private final SingleDummyService singleDummyService;
+
+    private final HandEvaluator handEvaluator = new HandEvaluator();
 
     public DdsController(DdsService ddsService, SingleDummyService singleDummyService) {
         this.ddsService = ddsService;
@@ -62,6 +66,12 @@ public class DdsController {
     @PostMapping("/dds/single-dummy")
     public SingleDummyAnalyzeResponse singleDummy(@RequestBody SingleDummyAnalyzeRequest request) {
         return singleDummyService.analyze(request);
+    }
+
+    @PostMapping("/dds/hand-evaluation")
+    public HandEvaluationResponse handEvaluation(@RequestBody HandEvaluationRequest request) {
+        Hand hand = handEvaluator.fromStringList(request.cards());
+        return new HandEvaluationResponse(handEvaluator.evaluate(hand));
     }
 
     private @NonNull DdsAnalyzeResponse getDdsAnalyzeResponse(String pbn) {

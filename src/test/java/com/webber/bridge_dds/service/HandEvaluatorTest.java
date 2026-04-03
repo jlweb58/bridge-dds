@@ -68,6 +68,16 @@ public class HandEvaluatorTest {
     }
 
     @Test
+    public void testHandWithDiamondVoid() {
+        Hand hand = new Hand();
+        hand.add(Card.SK).add(Card.SJ).add(Card.ST).add(Card.S2);
+        hand.add(Card.H9).add(Card.H8).add(Card.H6).add(Card.H3).add(Card.H2);
+        hand.add(Card.CA).add(Card.CT).add(Card.C8).add(Card.C3);
+        double points = handEvaluator.evaluate(hand);
+        assertEquals(11.3, points, 0.01);
+    }
+
+    @Test
     public void testIsTenWithJackOrTwoHigherHonors() {
         Set<Rank> ranks = Set.of(Rank.TEN, Rank.JACK, Rank.TWO, Rank.EIGHT);
         boolean result = handEvaluator.isTenWithJackOrTwoHigherHonors(ranks);
@@ -94,7 +104,7 @@ public class HandEvaluatorTest {
 
     @Test
     public void testIsNineWithEightOrTenOrTwoHigherHonors() {
-        Set<Rank> ranks = Set.of(Rank.NINE, Rank.JACK, Rank.TWO, Rank.EIGHT);
+        Set<Rank> ranks = Set.of(Rank.NINE, Rank.EIGHT, Rank.SIX, Rank.THREE, Rank.TWO);
         boolean result = handEvaluator.isNineWithEightOrTenOrTwoHigherHonors(ranks);
         assertTrue(result);
         ranks = Set.of(Rank.NINE, Rank.JACK, Rank.TWO, Rank.TEN);
