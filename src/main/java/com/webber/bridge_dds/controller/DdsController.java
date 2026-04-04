@@ -11,6 +11,9 @@ import com.webber.bridge_dds.parser.DealParsers;
 import com.webber.bridge_dds.service.DdsService;
 import com.webber.bridge_dds.service.KaplanRubensHandEvaluator;
 import com.webber.bridge_dds.service.SingleDummyService;
+import com.webber.bridge_dds.service.handgeneration.HandGenerationRequest;
+import com.webber.bridge_dds.service.handgeneration.HandGenerationResponse;
+import com.webber.bridge_dds.service.handgeneration.HandGenerationService;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +36,8 @@ public class DdsController {
     private final SingleDummyService singleDummyService;
 
     private final KaplanRubensHandEvaluator kaplanRubensHandEvaluator = new KaplanRubensHandEvaluator();
+
+    private final HandGenerationService handGenerationService = new HandGenerationService(kaplanRubensHandEvaluator);
 
     public DdsController(DdsService ddsService, SingleDummyService singleDummyService) {
         this.ddsService = ddsService;
@@ -72,6 +77,23 @@ public class DdsController {
     public HandEvaluationResponse handEvaluation(@RequestBody HandEvaluationRequest request) {
         Hand hand = kaplanRubensHandEvaluator.fromStringList(request.cards());
         return new HandEvaluationResponse(kaplanRubensHandEvaluator.evaluate(hand));
+    }
+
+    @PostMapping("/dds/hand-generation")
+    public HandGenerationResponse generateHands(@RequestBody HandGenerationRequest request) {
+        Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
+        Map<Player, List<HandGenerationResponse.GeneratedHandDto>> responseHands = new EnumMap<>(Player.class);
+
+        for (Map.Entry<Player, List<Hand>> entry : hands.entrySet()) {
+            responseHands.put(
+                    entry.getKey(),
+                    entry.getValue().stream()
+                            .map(HandGenerationResponse.GeneratedHandDto::from)
+                            .toList()
+            );
+        }
+
+        return new HandGenerationResponse(responseHands);
     }
 
     private @NonNull DdsAnalyzeResponse getDdsAnalyzeResponse(String pbn) {

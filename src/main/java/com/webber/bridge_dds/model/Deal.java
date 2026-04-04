@@ -1,5 +1,7 @@
 package com.webber.bridge_dds.model;
 
+import lombok.Getter;
+
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
@@ -7,6 +9,7 @@ import java.util.Objects;
 
 public class Deal {
 
+    @Getter
     private Player first = Player.NORTH;
 
     private final Map<Player, Hand> hands = new EnumMap<>(Player.class);
@@ -15,10 +18,6 @@ public class Deal {
         for (Player p : Player.values()) {
             hands.put(p, new Hand());
         }
-    }
-
-    public Player getFirst() {
-        return first;
     }
 
     public void setFirst(Player first) {

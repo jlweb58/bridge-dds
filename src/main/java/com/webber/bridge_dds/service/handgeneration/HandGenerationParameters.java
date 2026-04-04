@@ -8,5 +8,6 @@ public record HandGenerationParameters(
        public HandGenerationParameters {
            assert minPoints >= 0;
            assert maxPoints >= minPoints;
+           assert handDistribution != null;
        }
 }
