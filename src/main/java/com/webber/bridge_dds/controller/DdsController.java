@@ -82,18 +82,27 @@ public class DdsController {
     @PostMapping("/dds/hand-generation")
     public HandGenerationResponse generateHands(@RequestBody HandGenerationRequest request) {
         Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
-        Map<Player, List<HandGenerationResponse.GeneratedHandDto>> responseHands = new EnumMap<>(Player.class);
+        List<HandGenerationResponse.GeneratedHandDto> responseHands = new java.util.ArrayList<>();
 
-        for (Map.Entry<Player, List<Hand>> entry : hands.entrySet()) {
-            responseHands.put(
-                    entry.getKey(),
-                    entry.getValue().stream()
-                            .map(HandGenerationResponse.GeneratedHandDto::from)
-                            .toList()
-            );
+        int handCount = hands.getOrDefault(Player.WEST, List.of()).size();
+        for (int i = 0; i < handCount; i++) {
+            responseHands.add(new HandGenerationResponse.GeneratedHandDto(
+                    toPbnCards(hands.get(Player.WEST).get(i)),
+                    toPbnCards(hands.get(Player.EAST).get(i))
+            ));
         }
 
         return new HandGenerationResponse(responseHands);
+    }
+
+    private static List<String> toPbnCards(Hand hand) {
+        List<String> cards = new java.util.ArrayList<>(13);
+        for (com.webber.bridge_dds.model.Suit suit : com.webber.bridge_dds.model.Suit.values()) {
+            for (com.webber.bridge_dds.model.Rank rank : hand.ranksForSuit(suit)) {
+                cards.add("" + suit.toPbnChar() + rank.toPbnChar());
+            }
+        }
+        return cards;
     }
 
     private @NonNull DdsAnalyzeResponse getDdsAnalyzeResponse(String pbn) {
