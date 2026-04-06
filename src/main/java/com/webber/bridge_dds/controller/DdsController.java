@@ -7,6 +7,7 @@ import com.webber.bridge_dds.model.Deal;
 import com.webber.bridge_dds.model.Denomination;
 import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
+import com.webber.bridge_dds.model.Vulnerability;
 import com.webber.bridge_dds.parser.DealParsers;
 import com.webber.bridge_dds.service.DdsService;
 import com.webber.bridge_dds.service.KaplanRubensHandEvaluator;
@@ -39,6 +40,28 @@ public class DdsController {
 
     private final HandGenerationService handGenerationService = new HandGenerationService(kaplanRubensHandEvaluator);
 
+    private static final Player[] DEALER_CYCLE = {
+            Player.NORTH, Player.EAST, Player.SOUTH, Player.WEST
+    };
+
+    private static final Vulnerability[] VULNERABILITY_CYCLE = {
+            Vulnerability.NONE,
+            Vulnerability.NS,
+            Vulnerability.EW,
+            Vulnerability.BOTH,
+            Vulnerability.NS,
+            Vulnerability.EW,
+            Vulnerability.BOTH,
+            Vulnerability.NONE,
+            Vulnerability.EW,
+            Vulnerability.BOTH,
+            Vulnerability.NONE,
+            Vulnerability.NS,
+            Vulnerability.BOTH,
+            Vulnerability.NONE,
+            Vulnerability.NS,
+            Vulnerability.EW
+    };
     public DdsController(DdsService ddsService, SingleDummyService singleDummyService) {
         this.ddsService = ddsService;
         this.singleDummyService = singleDummyService;
@@ -86,13 +109,25 @@ public class DdsController {
 
         int handCount = hands.getOrDefault(Player.WEST, List.of()).size();
         for (int i = 0; i < handCount; i++) {
+            int boardNumber = i + 1;
+
             responseHands.add(new HandGenerationResponse.GeneratedHandDto(
+                    dealerForBoard(boardNumber),
+                    vulnerabilityForBoard(boardNumber),
                     toPbnCards(hands.get(Player.WEST).get(i)),
                     toPbnCards(hands.get(Player.EAST).get(i))
             ));
         }
 
         return new HandGenerationResponse(responseHands);
+    }
+
+    private static Player dealerForBoard(int boardNumber) {
+        return DEALER_CYCLE[(boardNumber - 1) % 4];
+    }
+
+    private static Vulnerability vulnerabilityForBoard(int boardNumber) {
+        return VULNERABILITY_CYCLE[(boardNumber - 1) % 16];
     }
 
     private static List<String> toPbnCards(Hand hand) {
