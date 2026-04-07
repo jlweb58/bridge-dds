@@ -5,6 +5,7 @@ import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.model.Rank;
 import com.webber.bridge_dds.model.Suit;
 import com.webber.bridge_dds.service.HandEvaluator;
+import com.webber.bridge_dds.service.HandEvaluatorType;
 import com.webber.bridge_dds.service.StandardHandEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,6 @@ public class HandGenerationTest {
     public void testGenerateTenHands() {
         int numOfHands = 10;
 
-        Map<Player, HandGenerationParameters> parameters = new HashMap<>();
         EnumMap<Suit, SuitLengthRange> westSuitLengthRange = new EnumMap<>(Suit.class);
         westSuitLengthRange.put(Suit.SPADES, new SuitLengthRange(2, 4));
         westSuitLengthRange.put(Suit.HEARTS, new SuitLengthRange(2, 4));
@@ -53,7 +53,7 @@ public class HandGenerationTest {
         Map<Player, HandGenerationParameters> parametersMap = new HashMap<>();
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
-        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands);
+        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier());
         Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
         assertNotNull(hands);
         assertEquals(numOfHands, hands.get(westPlayer).size());
@@ -67,7 +67,6 @@ public class HandGenerationTest {
     @Test
     public void testItGeneratesANTOpenerFacingA5CardSpadeSuit() {
         int numOfHands = 10;
-        Map<Player, HandGenerationParameters> parameters = new HashMap<>();
         EnumMap<Suit, SuitLengthRange> westSuitLengthRange = new EnumMap<>(Suit.class);
         westSuitLengthRange.put(Suit.SPADES, new SuitLengthRange(2, 4));
         westSuitLengthRange.put(Suit.HEARTS, new SuitLengthRange(2, 4));
@@ -87,7 +86,7 @@ public class HandGenerationTest {
         Map<Player, HandGenerationParameters> parametersMap = new HashMap<>();
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
-        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands);
+        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier());
         Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
         assertNotNull(hands);
         assertEquals(numOfHands, hands.get(westPlayer).size());
@@ -95,7 +94,6 @@ public class HandGenerationTest {
 
         hands.get(westPlayer).forEach(hand -> validateHand(hand, westParameters));
         hands.get(eastPlayer).forEach(hand -> validateHand(hand, eastParameters));
-        hands.forEach((player, handList) -> handList.forEach(hand -> System.out.println(player + ": " + hand.view())));
     }
 
     private void validateHand(Hand hand, HandGenerationParameters parameters) {

@@ -10,8 +10,11 @@ import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.model.Vulnerability;
 import com.webber.bridge_dds.parser.DealParsers;
 import com.webber.bridge_dds.service.DdsService;
+import com.webber.bridge_dds.service.HandEvaluatorFactory;
+import com.webber.bridge_dds.service.HandEvaluatorType;
 import com.webber.bridge_dds.service.KaplanRubensHandEvaluator;
 import com.webber.bridge_dds.service.SingleDummyService;
+import com.webber.bridge_dds.service.StandardHandEvaluator;
 import com.webber.bridge_dds.service.handgeneration.HandGenerationRequest;
 import com.webber.bridge_dds.service.handgeneration.HandGenerationResponse;
 import com.webber.bridge_dds.service.handgeneration.HandGenerationService;
@@ -37,8 +40,6 @@ public class DdsController {
     private final SingleDummyService singleDummyService;
 
     private final KaplanRubensHandEvaluator kaplanRubensHandEvaluator = new KaplanRubensHandEvaluator();
-
-    private final HandGenerationService handGenerationService = new HandGenerationService(kaplanRubensHandEvaluator);
 
     private static final Player[] DEALER_CYCLE = {
             Player.NORTH, Player.EAST, Player.SOUTH, Player.WEST
@@ -104,6 +105,8 @@ public class DdsController {
 
     @PostMapping("/dds/hand-generation")
     public HandGenerationResponse generateHands(@RequestBody HandGenerationRequest request) {
+        HandEvaluatorType handEvaluatorType = request.evaluator() == null ? HandEvaluatorType.STANDARD : HandEvaluatorType.fromId(request.evaluator());
+        HandGenerationService handGenerationService = new HandGenerationService(HandEvaluatorFactory.fromType(handEvaluatorType));
         Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
         List<HandGenerationResponse.GeneratedHandDto> responseHands = new java.util.ArrayList<>();
 
