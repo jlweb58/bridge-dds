@@ -28,7 +28,7 @@ public enum Rank {
           case KING -> 3.0;
           case QUEEN -> 2.0;
           case JACK -> 1.0;
-          case TEN -> 0.5;
+          case TEN -> 0.0;
           default -> 0.0;
       };
   }

@@ -3,7 +3,8 @@ package com.webber.bridge_dds.service;
 public enum HandEvaluatorType {
 
     STANDARD("standard"),
-    KAPLAN_RUBENS("kaplan-rubens");
+    KAPLAN_RUBENS("kaplan-rubens"),
+    BERGEN("bergen");
 
     private final String identifier;
 

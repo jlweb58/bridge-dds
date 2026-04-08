@@ -5,6 +5,7 @@ public final class HandEvaluatorFactory {
         return switch (type) {
             case STANDARD -> new StandardHandEvaluator();
             case KAPLAN_RUBENS -> new KaplanRubensHandEvaluator();
+            case BERGEN -> new BergenHandEvaluator();
         };
     }
 

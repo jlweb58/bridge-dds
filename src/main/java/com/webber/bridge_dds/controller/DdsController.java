@@ -106,6 +106,7 @@ public class DdsController {
     @PostMapping("/dds/hand-generation")
     public HandGenerationResponse generateHands(@RequestBody HandGenerationRequest request) {
         HandEvaluatorType handEvaluatorType = request.evaluator() == null ? HandEvaluatorType.STANDARD : HandEvaluatorType.fromId(request.evaluator());
+        System.out.println("HandEvaluatorType: " + handEvaluatorType);
         HandGenerationService handGenerationService = new HandGenerationService(HandEvaluatorFactory.fromType(handEvaluatorType));
         Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
         List<HandGenerationResponse.GeneratedHandDto> responseHands = new java.util.ArrayList<>();

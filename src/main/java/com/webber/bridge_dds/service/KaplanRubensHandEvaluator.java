@@ -27,20 +27,14 @@ public class KaplanRubensHandEvaluator extends AbstractHandEvaluator {
         return points;
     }
 
-    private boolean is4_3_3_3_Distribution(Hand hand) {
-        return hand.view().values().stream()
-                .mapToInt(Set::size)
-                .sorted()
-                .boxed()
-                .toList()
-                .equals(List.of(3, 3, 3, 4));
-    }
-
     @Override
     protected double evaluateSuit(Hand hand, Suit suit) {
         double points;
         Set<Rank> ranks = hand.ranksForSuit(suit);
         points = ranks.stream().mapToDouble(Rank::points).sum();
+        if (ranks.contains(Rank.TEN)) {
+            points += 0.5;
+        }
         if (isTenWithJackOrTwoHigherHonors(ranks)
                 || isNineWithEightOrTenOrTwoHigherHonors(ranks)
                 || isNineWithThreeHigherHonors(ranks)
