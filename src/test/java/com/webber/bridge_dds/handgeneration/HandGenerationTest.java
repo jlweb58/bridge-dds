@@ -1,10 +1,6 @@
 package com.webber.bridge_dds.handgeneration;
 
-import com.webber.bridge_dds.handgeneration.HandDistribution;
-import com.webber.bridge_dds.handgeneration.HandGenerationParameters;
-import com.webber.bridge_dds.handgeneration.HandGenerationRequest;
-import com.webber.bridge_dds.handgeneration.HandGenerationService;
-import com.webber.bridge_dds.handgeneration.SuitLengthRange;
+import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.model.Rank;
@@ -12,8 +8,9 @@ import com.webber.bridge_dds.model.Suit;
 import com.webber.bridge_dds.service.HandEvaluator;
 import com.webber.bridge_dds.service.HandEvaluatorType;
 import com.webber.bridge_dds.service.StandardHandEvaluator;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -23,17 +20,14 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SpringBootTest
 public class HandGenerationTest {
 
+    @Autowired
     private HandGenerationService handGenerationService;
-    private final HandEvaluator handEvaluator = new StandardHandEvaluator();
-    private final Player westPlayer = Player.WEST;
-    private final Player eastPlayer = Player.EAST;
 
-    @BeforeEach
-    public void setUp() {
-        handGenerationService = new HandGenerationService(new StandardHandEvaluator());
-    }
+    private final HandEvaluator handEvaluator = new StandardHandEvaluator();
+
 
     @Test
     public void testGenerateTenHands() {
@@ -59,14 +53,11 @@ public class HandGenerationTest {
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
         HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null);
-        Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
-        assertNotNull(hands);
-        assertEquals(numOfHands, hands.get(westPlayer).size());
-        assertEquals(numOfHands, hands.get(eastPlayer).size());
-        hands.get(westPlayer).forEach(hand -> validateHand(hand, westParameters));
-        hands.get(eastPlayer).forEach(hand -> validateHand(hand, eastParameters));
-
-        hands.forEach((player, handList) -> handList.forEach(hand -> System.out.println(player + ": " + hand.view())));
+        HandGenerationResponse response = handGenerationService.generateHands(request);
+        assertNotNull(response);
+        assertEquals(numOfHands, response.hands().size());
+        response.hands().forEach(hand -> validateHand(hand.west(), westParameters));
+        response.hands().forEach(hand -> validateHand(hand.east(), eastParameters));
     }
 
     @Test
@@ -92,18 +83,17 @@ public class HandGenerationTest {
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
         HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null);
-        Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
-        assertNotNull(hands);
-        assertEquals(numOfHands, hands.get(westPlayer).size());
-        assertEquals(numOfHands, hands.get(eastPlayer).size());
-
-        hands.get(westPlayer).forEach(hand -> validateHand(hand, westParameters));
-        hands.get(eastPlayer).forEach(hand -> validateHand(hand, eastParameters));
+        HandGenerationResponse response = handGenerationService.generateHands(request);
+        assertNotNull(response);
+        assertEquals(numOfHands, response.hands().size());
+        response.hands().forEach(hand -> validateHand(hand.west(), westParameters));
+        response.hands().forEach(hand -> validateHand(hand.east(), eastParameters));
     }
 
-    private void validateHand(Hand hand, HandGenerationParameters parameters) {
-        assertNotNull(hand);
-        assertEquals(13, hand.size());
+    private void validateHand(List<String> handCodes, HandGenerationParameters parameters) {
+        assertNotNull(handCodes);
+        assertEquals(13, handCodes.size());
+        Hand hand = handFromCodeString(handCodes);
         EnumSet<Rank> spades = hand.ranksForSuit(Suit.SPADES);
         EnumSet<Rank> hearts = hand.ranksForSuit(Suit.HEARTS);
         EnumSet<Rank> diamonds = hand.ranksForSuit(Suit.DIAMONDS);
@@ -117,6 +107,12 @@ public class HandGenerationTest {
 
         validatePointCount(parameters, hand);
 
+    }
+
+    private Hand handFromCodeString(List<String> cardCodes) {
+        Hand hand = new Hand();
+        cardCodes.forEach(cardCode -> hand.add(Card.fromCode(cardCode)));
+        return hand;
     }
 
     private void validateSuitLengthRange(SuitLengthRange range, EnumSet<Rank> cards) {

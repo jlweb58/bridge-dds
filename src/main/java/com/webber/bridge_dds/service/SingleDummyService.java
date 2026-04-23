@@ -8,6 +8,7 @@ import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.Deal;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.parser.DealParsers;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;

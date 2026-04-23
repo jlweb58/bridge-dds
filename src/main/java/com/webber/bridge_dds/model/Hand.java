@@ -3,9 +3,11 @@ package com.webber.bridge_dds.model;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,6 +44,16 @@ public class Hand {
 
     public EnumSet<Rank> ranksForSuit(Suit suit) {
         return cards.get(suit);
+    }
+
+    public List<String> toCardCodes() {
+        List<String> cards = new ArrayList<>(13);
+        for (Suit suit : Suit.values()) {
+            for (Rank rank : this.ranksForSuit(suit)) {
+                cards.add("" + suit.toPbnChar() + rank.toPbnChar());
+            }
+        }
+        return cards;
     }
 
     /**

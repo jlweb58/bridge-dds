@@ -10,12 +10,13 @@ public record HandGenerationRequest(
         Map<Player, HandGenerationParameters> parameters,
         int numberOfHands,
         String evaluator,
-        List<ContractSuggestion> contractSuggestionList) {
+        List<ContractSuggestion> contractSuggestions) {
     public HandGenerationRequest {
         assert parameters.containsKey(Player.WEST);
         assert parameters.containsKey(Player.EAST);
         assert parameters.size() == 2;
         assert numberOfHands > 0;
         if (evaluator == null) evaluator = HandEvaluatorType.STANDARD.identifier();
+        assert contractSuggestions == null || contractSuggestions.size() <= 4;
     }
 }

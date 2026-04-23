@@ -1,7 +1,10 @@
 package com.webber.bridge_dds.service;
 
+import org.springframework.stereotype.Component;
+
+@Component
 public final class HandEvaluatorFactory {
-    public static HandEvaluator fromType(HandEvaluatorType type) {
+    public HandEvaluator fromType(HandEvaluatorType type) {
         return switch (type) {
             case STANDARD -> new StandardHandEvaluator();
             case KAPLAN_RUBENS -> new KaplanRubensHandEvaluator();
@@ -9,6 +12,4 @@ public final class HandEvaluatorFactory {
         };
     }
 
-    private HandEvaluatorFactory() {
-    }
 }
