@@ -1,5 +1,8 @@
 package com.webber.bridge_dds.model;
 
+import lombok.Getter;
+
+@Getter
 public enum Strain {
     SPADES("S"),
     HEARTS("H"),
@@ -13,7 +16,4 @@ public enum Strain {
         this.symbol = symbol;
     }
 
-    public String getSymbol() {
-        return symbol;
-    }
 }
