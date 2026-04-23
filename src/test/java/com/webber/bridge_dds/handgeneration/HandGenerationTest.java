@@ -1,5 +1,10 @@
-package com.webber.bridge_dds.service.handgeneration;
+package com.webber.bridge_dds.handgeneration;
 
+import com.webber.bridge_dds.handgeneration.HandDistribution;
+import com.webber.bridge_dds.handgeneration.HandGenerationParameters;
+import com.webber.bridge_dds.handgeneration.HandGenerationRequest;
+import com.webber.bridge_dds.handgeneration.HandGenerationService;
+import com.webber.bridge_dds.handgeneration.SuitLengthRange;
 import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.model.Rank;
@@ -53,7 +58,7 @@ public class HandGenerationTest {
         Map<Player, HandGenerationParameters> parametersMap = new HashMap<>();
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
-        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier());
+        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null);
         Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
         assertNotNull(hands);
         assertEquals(numOfHands, hands.get(westPlayer).size());
@@ -86,7 +91,7 @@ public class HandGenerationTest {
         Map<Player, HandGenerationParameters> parametersMap = new HashMap<>();
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
-        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier());
+        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null);
         Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
         assertNotNull(hands);
         assertEquals(numOfHands, hands.get(westPlayer).size());

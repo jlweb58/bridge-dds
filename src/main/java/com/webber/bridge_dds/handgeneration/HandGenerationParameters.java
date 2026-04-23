@@ -1,9 +1,9 @@
-package com.webber.bridge_dds.service.handgeneration;
+package com.webber.bridge_dds.handgeneration;
 
 public record HandGenerationParameters(
-       int minPoints,
-       int maxPoints,
-       HandDistribution handDistribution                                      ) {
+        int minPoints,
+        int maxPoints,
+        HandDistribution handDistribution) {
 
        public HandGenerationParameters {
            assert minPoints >= 0;

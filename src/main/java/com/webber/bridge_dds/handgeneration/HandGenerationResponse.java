@@ -1,4 +1,4 @@
-package com.webber.bridge_dds.service.handgeneration;
+package com.webber.bridge_dds.handgeneration;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.webber.bridge_dds.model.Player;
@@ -12,6 +12,10 @@ public record HandGenerationResponse(List<GeneratedHandDto> hands) {
             @JsonProperty("dealer") Player dealer,
             @JsonProperty("vulnerability") Vulnerability vulnerability,
             @JsonProperty("WEST") List<String> west,
-            @JsonProperty("EAST") List<String> east) {
+            @JsonProperty("EAST") List<String> east,
+            @JsonProperty("contractScores") List<ContractScoreDto> contractScores)
+    {
     }
+
+    public record ContractScoreDto(ContractSuggestion contract, int successProbability, int rank) {}
 }

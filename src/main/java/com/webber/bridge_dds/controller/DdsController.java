@@ -7,20 +7,16 @@ import com.webber.bridge_dds.model.Deal;
 import com.webber.bridge_dds.model.Denomination;
 import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
-import com.webber.bridge_dds.model.Vulnerability;
 import com.webber.bridge_dds.parser.DealParsers;
 import com.webber.bridge_dds.service.DdsService;
-import com.webber.bridge_dds.service.HandEvaluatorFactory;
-import com.webber.bridge_dds.service.HandEvaluatorType;
 import com.webber.bridge_dds.service.KaplanRubensHandEvaluator;
 import com.webber.bridge_dds.service.SingleDummyService;
-import com.webber.bridge_dds.service.StandardHandEvaluator;
-import com.webber.bridge_dds.service.handgeneration.HandGenerationRequest;
-import com.webber.bridge_dds.service.handgeneration.HandGenerationResponse;
-import com.webber.bridge_dds.service.handgeneration.HandGenerationService;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.EnumMap;
@@ -41,28 +37,6 @@ public class DdsController {
 
     private final KaplanRubensHandEvaluator kaplanRubensHandEvaluator = new KaplanRubensHandEvaluator();
 
-    private static final Player[] DEALER_CYCLE = {
-            Player.NORTH, Player.EAST, Player.SOUTH, Player.WEST
-    };
-
-    private static final Vulnerability[] VULNERABILITY_CYCLE = {
-            Vulnerability.NONE,
-            Vulnerability.NS,
-            Vulnerability.EW,
-            Vulnerability.BOTH,
-            Vulnerability.NS,
-            Vulnerability.EW,
-            Vulnerability.BOTH,
-            Vulnerability.NONE,
-            Vulnerability.EW,
-            Vulnerability.BOTH,
-            Vulnerability.NONE,
-            Vulnerability.NS,
-            Vulnerability.BOTH,
-            Vulnerability.NONE,
-            Vulnerability.NS,
-            Vulnerability.EW
-    };
     public DdsController(DdsService ddsService, SingleDummyService singleDummyService) {
         this.ddsService = ddsService;
         this.singleDummyService = singleDummyService;
@@ -103,46 +77,6 @@ public class DdsController {
         return new HandEvaluationResponse(kaplanRubensHandEvaluator.evaluate(hand));
     }
 
-    @PostMapping("/dds/hand-generation")
-    public HandGenerationResponse generateHands(@RequestBody HandGenerationRequest request) {
-        HandEvaluatorType handEvaluatorType = request.evaluator() == null ? HandEvaluatorType.STANDARD : HandEvaluatorType.fromId(request.evaluator());
-        System.out.println("HandEvaluatorType: " + handEvaluatorType);
-        HandGenerationService handGenerationService = new HandGenerationService(HandEvaluatorFactory.fromType(handEvaluatorType));
-        Map<Player, List<Hand>> hands = handGenerationService.generateHands(request);
-        List<HandGenerationResponse.GeneratedHandDto> responseHands = new java.util.ArrayList<>();
-
-        int handCount = hands.getOrDefault(Player.WEST, List.of()).size();
-        for (int i = 0; i < handCount; i++) {
-            int boardNumber = i + 1;
-
-            responseHands.add(new HandGenerationResponse.GeneratedHandDto(
-                    dealerForBoard(boardNumber),
-                    vulnerabilityForBoard(boardNumber),
-                    toPbnCards(hands.get(Player.WEST).get(i)),
-                    toPbnCards(hands.get(Player.EAST).get(i))
-            ));
-        }
-
-        return new HandGenerationResponse(responseHands);
-    }
-
-    private static Player dealerForBoard(int boardNumber) {
-        return DEALER_CYCLE[(boardNumber - 1) % 4];
-    }
-
-    private static Vulnerability vulnerabilityForBoard(int boardNumber) {
-        return VULNERABILITY_CYCLE[(boardNumber - 1) % 16];
-    }
-
-    private static List<String> toPbnCards(Hand hand) {
-        List<String> cards = new java.util.ArrayList<>(13);
-        for (com.webber.bridge_dds.model.Suit suit : com.webber.bridge_dds.model.Suit.values()) {
-            for (com.webber.bridge_dds.model.Rank rank : hand.ranksForSuit(suit)) {
-                cards.add("" + suit.toPbnChar() + rank.toPbnChar());
-            }
-        }
-        return cards;
-    }
 
     private @NonNull DdsAnalyzeResponse getDdsAnalyzeResponse(String pbn) {
         int[] trumpFilter = new int[5]; // 0 = any

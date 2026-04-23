@@ -1,4 +1,4 @@
-package com.webber.bridge_dds.service.handgeneration;
+package com.webber.bridge_dds.handgeneration;
 
 import com.webber.bridge_dds.model.Suit;
 
