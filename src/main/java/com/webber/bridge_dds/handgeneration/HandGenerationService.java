@@ -12,6 +12,7 @@ import com.webber.bridge_dds.service.HandEvaluatorType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -70,11 +71,16 @@ public class HandGenerationService {
                 request.contractSuggestions() == null ? List.of() : request.contractSuggestions();
 
         int handCount = hands.getOrDefault(Player.WEST, List.of()).size();
+        SecureRandom randomizer = new SecureRandom();
         for (int i = 0; i < handCount; i++) {
             int boardNumber = i + 1;
             Hand westHand = hands.get(Player.WEST).get(i);
             Hand eastHand = hands.get(Player.EAST).get(i);
-
+            if (randomizer.nextBoolean()) {
+                Hand temp = westHand;
+                westHand = eastHand;
+                eastHand = temp;
+            }
             responseHands.add(new HandGenerationResponse.GeneratedHandDto(
                     dealerForBoard(boardNumber),
                     vulnerabilityForBoard(boardNumber),
