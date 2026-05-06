@@ -12,7 +12,6 @@ import com.webber.bridge_dds.service.HandEvaluatorType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -71,16 +70,11 @@ public class HandGenerationService {
                 request.contractSuggestions() == null ? List.of() : request.contractSuggestions();
 
         int handCount = hands.getOrDefault(Player.WEST, List.of()).size();
-        SecureRandom randomizer = new SecureRandom();
         for (int i = 0; i < handCount; i++) {
             int boardNumber = i + 1;
             Hand westHand = hands.get(Player.WEST).get(i);
             Hand eastHand = hands.get(Player.EAST).get(i);
-            if (randomizer.nextBoolean()) {
-                Hand temp = westHand;
-                westHand = eastHand;
-                eastHand = temp;
-            }
+
             responseHands.add(new HandGenerationResponse.GeneratedHandDto(
                     dealerForBoard(boardNumber),
                     vulnerabilityForBoard(boardNumber),
@@ -133,6 +127,15 @@ public class HandGenerationService {
     private boolean validateGeneratedHand(HandEvaluator handEvaluator, HandGenerationParameters parameters, Hand hand) {
         assert hand != null;
         assert hand.size() == 13;
+        return validateDistribution(parameters, hand)
+                && validatePointCount(handEvaluator, parameters, hand);
+    }
+
+    private boolean validateDistribution(HandGenerationParameters parameters, Hand hand) {
+        if (parameters.condition() != null) {
+            return parameters.condition().matches(hand);
+        }
+
         EnumSet<Rank> spades = hand.ranksForSuit(Suit.SPADES);
         EnumSet<Rank> hearts = hand.ranksForSuit(Suit.HEARTS);
         EnumSet<Rank> diamonds = hand.ranksForSuit(Suit.DIAMONDS);
@@ -140,10 +143,9 @@ public class HandGenerationService {
         HandDistribution handDistribution = parameters.handDistribution();
 
         return validateSuitLengthRange(handDistribution.suitLengths().get(Suit.SPADES), spades)
-        && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.HEARTS), hearts)
-        && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.DIAMONDS), diamonds)
-        && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.CLUBS), clubs)
-        && validatePointCount(handEvaluator, parameters, hand);
+                && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.HEARTS), hearts)
+                && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.DIAMONDS), diamonds)
+                && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.CLUBS), clubs);
     }
 
     private boolean validateSuitLengthRange(SuitLengthRange range, EnumSet<Rank> cards) {

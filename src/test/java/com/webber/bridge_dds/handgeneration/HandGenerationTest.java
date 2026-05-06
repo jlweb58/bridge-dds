@@ -90,6 +90,83 @@ public class HandGenerationTest {
         response.hands().forEach(hand -> validateHand(hand.east(), eastParameters));
     }
 
+    @Test
+    public void testItGeneratesHandsMatchingAndOrDistributionConditions() {
+        int numOfHands = 10;
+
+        HandGenerationCondition westCondition = new HandGenerationCondition(
+                HandGenerationConditionOperator.AND,
+                List.of(
+                        new HandGenerationCondition(
+                                HandGenerationConditionOperator.OR,
+                                List.of(
+                                        new HandGenerationCondition(null, null, Suit.SPADES, new SuitLengthRange(5, 6)),
+                                        new HandGenerationCondition(null, null, Suit.HEARTS, new SuitLengthRange(5, 6))
+                                ),
+                                null,
+                                null
+                        ),
+                        new HandGenerationCondition(
+                                HandGenerationConditionOperator.OR,
+                                List.of(
+                                        new HandGenerationCondition(null, null, Suit.DIAMONDS, new SuitLengthRange(5, 6)),
+                                        new HandGenerationCondition(null, null, Suit.CLUBS, new SuitLengthRange(5, 6))
+                                ),
+                                null,
+                                null
+                        )
+                ),
+                null,
+                null
+        );
+
+        HandGenerationParameters westParameters = new HandGenerationParameters(0, 40, null, westCondition);
+
+        EnumMap<Suit, SuitLengthRange> eastSuitLengthRange = new EnumMap<>(Suit.class);
+        eastSuitLengthRange.put(Suit.SPADES, new SuitLengthRange(0, 13));
+        eastSuitLengthRange.put(Suit.HEARTS, new SuitLengthRange(0, 13));
+        eastSuitLengthRange.put(Suit.DIAMONDS, new SuitLengthRange(0, 13));
+        eastSuitLengthRange.put(Suit.CLUBS, new SuitLengthRange(0, 13));
+        HandDistribution eastDistribution = new HandDistribution(eastSuitLengthRange);
+        HandGenerationParameters eastParameters = new HandGenerationParameters(0, 40, eastDistribution);
+
+        Map<Player, HandGenerationParameters> parametersMap = new HashMap<>();
+        parametersMap.put(Player.WEST, westParameters);
+        parametersMap.put(Player.EAST, eastParameters);
+
+        HandGenerationRequest request = new HandGenerationRequest(
+                parametersMap,
+                numOfHands,
+                HandEvaluatorType.STANDARD.identifier(),
+                null
+        );
+
+        HandGenerationResponse response = handGenerationService.generateHands(request);
+
+        assertNotNull(response);
+        assertEquals(numOfHands, response.hands().size());
+
+        response.hands().forEach(generatedHand -> {
+            Hand westHand = handFromCodeString(generatedHand.west());
+
+            boolean hasFiveToSixCardMajor =
+                    suitLengthInRange(westHand, Suit.SPADES, 5, 6)
+                            || suitLengthInRange(westHand, Suit.HEARTS, 5, 6);
+
+            boolean hasFiveToSixCardMinor =
+                    suitLengthInRange(westHand, Suit.DIAMONDS, 5, 6)
+                            || suitLengthInRange(westHand, Suit.CLUBS, 5, 6);
+
+            assertTrue(hasFiveToSixCardMajor);
+            assertTrue(hasFiveToSixCardMinor);
+        });
+    }
+
+    private boolean suitLengthInRange(Hand hand, Suit suit, int min, int max) {
+        int suitLength = hand.ranksForSuit(suit).size();
+        return suitLength >= min && suitLength <= max;
+    }
+
     private void validateHand(List<String> handCodes, HandGenerationParameters parameters) {
         assertNotNull(handCodes);
         assertEquals(13, handCodes.size());
@@ -106,7 +183,6 @@ public class HandGenerationTest {
         validateSuitLengthRange(handDistribution.suitLengths().get(Suit.CLUBS), clubs);
 
         validatePointCount(parameters, hand);
-
     }
 
     private Hand handFromCodeString(List<String> cardCodes) {
