@@ -120,7 +120,7 @@ public class HandGenerationTest {
                 null
         );
 
-        HandGenerationParameters westParameters = new HandGenerationParameters(0, 40, null, westCondition);
+        HandGenerationParameters westParameters = new HandGenerationParameters(0, 40, null, westCondition, null);
 
         EnumMap<Suit, SuitLengthRange> eastSuitLengthRange = new EnumMap<>(Suit.class);
         eastSuitLengthRange.put(Suit.SPADES, new SuitLengthRange(0, 13));

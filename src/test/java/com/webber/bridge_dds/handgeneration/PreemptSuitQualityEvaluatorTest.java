@@ -94,6 +94,17 @@ public class PreemptSuitQualityEvaluatorTest {
         )), 0.001);
     }
 
+    @Test
+        public void testRegressionAJxBetterThanQJT() {
+        Set<Rank> combo1 = EnumSet.of(Rank.ACE, Rank.JACK);
+        Set<Rank> combo2 = EnumSet.of(Rank.QUEEN, Rank.JACK, Rank.TEN);
+
+        double result1 = evaluator.evaluate(combo1);
+        double result2 = evaluator.evaluate(combo2);
+
+        assertTrue(result1 > result2);
+    }
+
 
 
 }

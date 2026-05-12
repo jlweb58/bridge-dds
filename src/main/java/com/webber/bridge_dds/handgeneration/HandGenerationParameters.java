@@ -1,13 +1,18 @@
 package com.webber.bridge_dds.handgeneration;
 
+import com.webber.bridge_dds.model.Suit;
+
+import java.util.Map;
+
 public record HandGenerationParameters(
         int minPoints,
         int maxPoints,
         HandDistribution handDistribution,
-        HandGenerationCondition condition) {
+        HandGenerationCondition condition,
+        Map<Suit,SuitQualityRequirement> suitQualityRequirements) {
 
     public HandGenerationParameters(int minPoints, int maxPoints, HandDistribution handDistribution) {
-        this(minPoints, maxPoints, handDistribution, null);
+        this(minPoints, maxPoints, handDistribution, null,null);
     }
 
     public HandGenerationParameters {
