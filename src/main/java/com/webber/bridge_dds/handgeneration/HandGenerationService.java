@@ -258,6 +258,7 @@ public class HandGenerationService {
         return "points=" + parameters.minPoints() + "-" + parameters.maxPoints()
                 + ", distribution=" + parameters.handDistribution()
                 + ", condition=" + parameters.condition()
+                + ", suitQualityMode=" + (parameters.condition() == null ? "GLOBAL" : "CONDITION_MATCHING_BRANCHES")
                 + ", suitQualityRequirements=" + parameters.suitQualityRequirements();
     }
 
@@ -311,11 +312,45 @@ public class HandGenerationService {
             return true;
         }
 
+        if (parameters.condition() != null) {
+            return conditionSatisfiesSuitQuality(parameters.condition(), requirements, hand);
+        }
+
         return requirements.entrySet().stream()
                 .allMatch(entry -> preemptSuitQualityEvaluator.satisfies(
                         hand.ranksForSuit(entry.getKey()),
                         entry.getValue()
                 ));
+    }
+
+    private boolean conditionSatisfiesSuitQuality(
+            HandGenerationCondition condition,
+            Map<Suit, SuitQualityRequirement> requirements,
+            Hand hand
+    ) {
+        if (condition.operator() == null) {
+            int suitLength = hand.ranksForSuit(condition.suit()).size();
+            boolean lengthMatches = suitLength >= condition.range().min()
+                    && suitLength <= condition.range().max();
+
+            if (!lengthMatches) {
+                return false;
+            }
+
+            SuitQualityRequirement requirement = requirements.get(condition.suit());
+            return requirement == null
+                    || preemptSuitQualityEvaluator.satisfies(
+                    hand.ranksForSuit(condition.suit()),
+                    requirement
+            );
+        }
+
+        return switch (condition.operator()) {
+            case AND -> condition.conditions().stream()
+                    .allMatch(child -> conditionSatisfiesSuitQuality(child, requirements, hand));
+            case OR -> condition.conditions().stream()
+                    .anyMatch(child -> conditionSatisfiesSuitQuality(child, requirements, hand));
+        };
     }
 
     private boolean validateDistribution(HandGenerationParameters parameters, Hand hand) {
