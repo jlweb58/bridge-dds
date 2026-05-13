@@ -29,7 +29,7 @@ public class HandGenerationService {
 
     private final HandContractScoringService handContractScoringService;
 
-    private final PreemptSuitQualityEvaluator preemptSuitQualityEvaluator;
+    private final SuitQualityRequirementsValidator suitQualityRequirementsValidator;
 
     private static final int NUMBER_OF_SAMPLES = 100;
 
@@ -66,10 +66,10 @@ public class HandGenerationService {
             Vulnerability.EW
     };
 
-    public HandGenerationService(HandEvaluatorFactory handEvaluatorFactory, HandContractScoringService handContractScoringService, PreemptSuitQualityEvaluator preemptSuitQualityEvaluator) {
+    public HandGenerationService(HandEvaluatorFactory handEvaluatorFactory, HandContractScoringService handContractScoringService, SuitQualityRequirementsValidator suitQualityRequirementsValidator) {
         this.handEvaluatorFactory = handEvaluatorFactory;
         this.handContractScoringService = handContractScoringService;
-        this.preemptSuitQualityEvaluator = preemptSuitQualityEvaluator;
+        this.suitQualityRequirementsValidator = suitQualityRequirementsValidator;
     }
 
     public HandGenerationResponse generateHands(HandGenerationRequest request) {
@@ -171,7 +171,7 @@ public class HandGenerationService {
                 continue;
             }
 
-            if (!validateSuitQualityRequirements(westParameters, westHand)) {
+            if (!suitQualityRequirementsValidator.satisfies(westParameters, westHand)) {
                 westSuitQualityFailures++;
                 logGenerationProgressIfNeeded(westCandidateAttempt, validWestHands, eastAttempts, westDistributionFailures, westPointFailures, westSuitQualityFailures);
                 continue;
@@ -258,7 +258,7 @@ public class HandGenerationService {
         return "points=" + parameters.minPoints() + "-" + parameters.maxPoints()
                 + ", distribution=" + parameters.handDistribution()
                 + ", condition=" + parameters.condition()
-                + ", suitQualityMode=" + (parameters.condition() == null ? "GLOBAL" : "CONDITION_MATCHING_BRANCHES")
+                + ", suitQualityMode=" + suitQualityRequirementsValidator.qualityMode(parameters)
                 + ", suitQualityRequirements=" + parameters.suitQualityRequirements();
     }
 
@@ -303,57 +303,10 @@ public class HandGenerationService {
         assert hand.size() == 13;
         return validateDistribution(parameters, hand)
                 && validatePointCount(handEvaluator, parameters, hand)
-                && validateSuitQualityRequirements(parameters, hand);
+                && suitQualityRequirementsValidator.satisfies(parameters, hand);
     }
 
-    private boolean validateSuitQualityRequirements(HandGenerationParameters parameters, Hand hand) {
-        Map<Suit, SuitQualityRequirement> requirements = parameters.suitQualityRequirements();
-        if (requirements == null || requirements.isEmpty()) {
-            return true;
-        }
-
-        if (parameters.condition() != null) {
-            return conditionSatisfiesSuitQuality(parameters.condition(), requirements, hand);
-        }
-
-        return requirements.entrySet().stream()
-                .allMatch(entry -> preemptSuitQualityEvaluator.satisfies(
-                        hand.ranksForSuit(entry.getKey()),
-                        entry.getValue()
-                ));
-    }
-
-    private boolean conditionSatisfiesSuitQuality(
-            HandGenerationCondition condition,
-            Map<Suit, SuitQualityRequirement> requirements,
-            Hand hand
-    ) {
-        if (condition.operator() == null) {
-            int suitLength = hand.ranksForSuit(condition.suit()).size();
-            boolean lengthMatches = suitLength >= condition.range().min()
-                    && suitLength <= condition.range().max();
-
-            if (!lengthMatches) {
-                return false;
-            }
-
-            SuitQualityRequirement requirement = requirements.get(condition.suit());
-            return requirement == null
-                    || preemptSuitQualityEvaluator.satisfies(
-                    hand.ranksForSuit(condition.suit()),
-                    requirement
-            );
-        }
-
-        return switch (condition.operator()) {
-            case AND -> condition.conditions().stream()
-                    .allMatch(child -> conditionSatisfiesSuitQuality(child, requirements, hand));
-            case OR -> condition.conditions().stream()
-                    .anyMatch(child -> conditionSatisfiesSuitQuality(child, requirements, hand));
-        };
-    }
-
-    private boolean validateDistribution(HandGenerationParameters parameters, Hand hand) {
+        private boolean validateDistribution(HandGenerationParameters parameters, Hand hand) {
         if (parameters.condition() != null) {
             return parameters.condition().matches(hand);
         }
