@@ -114,7 +114,8 @@ public class HandGenerationService {
                 responseHands.size(),
                 end - start,
                 request.evaluator() == null ? HandEvaluatorType.STANDARD.identifier() : request.evaluator()
-        );        return new HandGenerationResponse(responseHands);
+        );
+        return new HandGenerationResponse(responseHands);
     }
 
     private static Player dealerForBoard(int boardNumber) {
@@ -306,7 +307,7 @@ public class HandGenerationService {
                 && suitQualityRequirementsValidator.satisfies(parameters, hand);
     }
 
-        private boolean validateDistribution(HandGenerationParameters parameters, Hand hand) {
+    private boolean validateDistribution(HandGenerationParameters parameters, Hand hand) {
         if (parameters.condition() != null) {
             return parameters.condition().matches(hand);
         }
