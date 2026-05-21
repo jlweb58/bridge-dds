@@ -6,13 +6,14 @@ import com.webber.bridge_dds.model.Vulnerability;
 
 import java.util.List;
 
-public record HandGenerationResponse(List<GeneratedHandDto> hands) {
+public record HandGenerationResponse(List<GeneratedHandDto> hands, HandGenerationRequest.NorthDescriptionDto northDescription) {
 
     public record GeneratedHandDto(
             @JsonProperty("dealer") Player dealer,
             @JsonProperty("vulnerability") Vulnerability vulnerability,
             @JsonProperty("WEST") List<String> west,
             @JsonProperty("EAST") List<String> east,
+            @JsonProperty("NORTH") List<String> north,
             @JsonProperty("contractScores") List<ContractScoreDto> contractScores)
     {
     }

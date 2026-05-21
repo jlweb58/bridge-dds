@@ -67,4 +67,9 @@ public class Hand {
         return Collections.unmodifiableMap(out);
     }
 
+    @Override
+    public String toString() {
+        return toCardCodes().toString();
+    }
+
 }

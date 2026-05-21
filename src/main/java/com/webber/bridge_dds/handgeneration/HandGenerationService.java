@@ -39,6 +39,8 @@ public class HandGenerationService {
 
     private static final int MAX_EAST_ATTEMPTS_PER_WEST_HAND = 100;
 
+    private static final int MAX_NORTH_ATTEMPTS_PER_EAST_HAND = 100;
+
     private static final int ATTEMPT_LOG_INTERVAL = 100_000;
 
     private static final int REPRESENTATIVE_FAILURE_LOG_LIMIT = 5;
@@ -83,6 +85,7 @@ public class HandGenerationService {
             );
         }
         List<HandGenerationResponse.GeneratedHandDto> responseHands = new java.util.ArrayList<>();
+
         List<ContractSuggestion> contractSuggestions =
                 request.contractSuggestions() == null ? List.of() : request.contractSuggestions();
 
@@ -91,12 +94,16 @@ public class HandGenerationService {
             int boardNumber = i + 1;
             Hand westHand = hands.get(Player.WEST).get(i);
             Hand eastHand = hands.get(Player.EAST).get(i);
-
+            Hand northHand = null;
+            if (hands.get(Player.NORTH) != null) {
+                northHand = hands.get(Player.NORTH).get(i);
+            }
             responseHands.add(new HandGenerationResponse.GeneratedHandDto(
                     dealerForBoard(boardNumber),
                     vulnerabilityForBoard(boardNumber),
                     westHand.toCardCodes(),
                     eastHand.toCardCodes(),
+                    northHand == null ? null : northHand.toCardCodes(),
                     contractSuggestions.isEmpty()
                             ? List.of()
                             : handContractScoringService.scoreContracts(
@@ -115,7 +122,7 @@ public class HandGenerationService {
                 end - start,
                 request.evaluator() == null ? HandEvaluatorType.STANDARD.identifier() : request.evaluator()
         );
-        return new HandGenerationResponse(responseHands);
+        return new HandGenerationResponse(responseHands, request.northDescription());
     }
 
     private static Player dealerForBoard(int boardNumber) {
@@ -132,11 +139,13 @@ public class HandGenerationService {
 
         HandGenerationParameters westParameters = request.parameters().get(Player.WEST);
         HandGenerationParameters eastParameters = request.parameters().get(Player.EAST);
+        HandGenerationParameters northParameters = request.parameters().get(Player.NORTH);
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Generating hand pair. West={}, East={}, evaluator={}",
+                    "Generating hand pair. West={}, East={}, North={}, evaluator={}",
                     generationParameterSummary(westParameters),
                     generationParameterSummary(eastParameters),
+                    northParameters == null ? "unconstrained" : generationParameterSummary(northParameters),
                     handEvaluatorType.identifier()
             );
         }
@@ -191,7 +200,11 @@ public class HandGenerationService {
 
                 Hand eastHand = dealRandomHandFrom(remainingCards);
 
-                if (validateGeneratedHand(handEvaluator, eastParameters, eastHand)) {
+                if (!validateGeneratedHand(handEvaluator, eastParameters, eastHand)) {
+                    continue;
+                }
+
+                if (northParameters == null) {
                     if (log.isDebugEnabled()) {
                         log.debug(
                                 "Generated hand pair after {} West candidate(s), {} valid West hand(s), {} East attempt(s). West shape={}, East shape={}",
@@ -202,11 +215,36 @@ public class HandGenerationService {
                                 handShape(eastHand)
                         );
                     }
+
                     Map<Player, Hand> generatedHand = new EnumMap<>(Player.class);
                     generatedHand.put(Player.WEST, westHand);
                     generatedHand.put(Player.EAST, eastHand);
                     return generatedHand;
                 }
+
+                List<Card> remainingCardsAfterWestEast = collectRemainingCards(westHand, eastHand);
+                Hand northHand = generateNorthHand(handEvaluator, northParameters, remainingCardsAfterWestEast);
+                if (northHand == null) {
+                    continue;
+                }
+
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Generated hand set after {} West candidate(s), {} valid West hand(s), {} East attempt(s). West shape={}, East shape={}, North shape={}",
+                            westCandidateAttempt,
+                            validWestHands,
+                            eastAttempts,
+                            handShape(westHand),
+                            handShape(eastHand),
+                            handShape(northHand)
+                    );
+                }
+
+                Map<Player, Hand> generatedHand = new EnumMap<>(Player.class);
+                generatedHand.put(Player.WEST, westHand);
+                generatedHand.put(Player.EAST, eastHand);
+                generatedHand.put(Player.NORTH, northHand);
+                return generatedHand;
             }
 
             logGenerationProgressIfNeeded(westCandidateAttempt, validWestHands, eastAttempts, westDistributionFailures, westPointFailures, westSuitQualityFailures);
@@ -274,12 +312,40 @@ public class HandGenerationService {
         return westHand;
     }
 
+    private Hand generateNorthHand(
+            HandEvaluator handEvaluator,
+            HandGenerationParameters northParameters,
+            List<Card> remainingCards
+    ) {
+        assert northParameters != null;
+
+        for (int attempt = 0; attempt < MAX_NORTH_ATTEMPTS_PER_EAST_HAND; attempt++) {
+            Hand northHand = dealRandomHandFrom(remainingCards);
+            if (validateGeneratedHand(handEvaluator, northParameters, northHand)) {
+                return northHand;
+            }
+        }
+
+        return null;
+    }
+
 
     private List<Card> collectRemainingCards(Hand westHand) {
         List<Card> remainingCards = new ArrayList<>(39);
 
         for (Card card : Card.values()) {
             if (!westHand.contains(card)) {
+                remainingCards.add(card);
+            }
+        }
+
+        return remainingCards;
+    }
+
+    private List<Card> collectRemainingCards(Hand westHand, Hand eastHand) {
+        List<Card> remainingCards = new ArrayList<>(26);
+        for (Card card : Card.values()) {
+            if (!westHand.contains(card) && !eastHand.contains(card)) {
                 remainingCards.add(card);
             }
         }

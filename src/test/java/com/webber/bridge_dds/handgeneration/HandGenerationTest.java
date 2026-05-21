@@ -11,6 +11,7 @@ import com.webber.bridge_dds.service.StandardHandEvaluator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -21,6 +22,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@TestPropertySource(locations="classpath:test.properties")
 public class HandGenerationTest {
 
     @Autowired
@@ -52,7 +54,7 @@ public class HandGenerationTest {
         Map<Player, HandGenerationParameters> parametersMap = new HashMap<>();
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
-        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null);
+        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null, null);
         HandGenerationResponse response = handGenerationService.generateHands(request);
         assertNotNull(response);
         assertEquals(numOfHands, response.hands().size());
@@ -82,7 +84,7 @@ public class HandGenerationTest {
         Map<Player, HandGenerationParameters> parametersMap = new HashMap<>();
         parametersMap.put(Player.WEST, westParameters);
         parametersMap.put(Player.EAST, eastParameters);
-        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null);
+        HandGenerationRequest request = new HandGenerationRequest(parametersMap, numOfHands, HandEvaluatorType.STANDARD.identifier(), null, null);
         HandGenerationResponse response = handGenerationService.generateHands(request);
         assertNotNull(response);
         assertEquals(numOfHands, response.hands().size());
@@ -138,6 +140,7 @@ public class HandGenerationTest {
                 parametersMap,
                 numOfHands,
                 HandEvaluatorType.STANDARD.identifier(),
+                null,
                 null
         );
 
