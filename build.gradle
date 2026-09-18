@@ -10,7 +10,7 @@ description = 'Spring Boot Java Wrapper for dds library'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
+		languageVersion = JavaLanguageVersion.of(25)
 	}
 }
 
@@ -28,10 +28,10 @@ dependencies {
 	implementation 'net.java.dev.jna:jna:5.14.0'
 	implementation 'net.java.dev.jna:jna-platform:5.14.0'
 
-	compileOnly "org.projectlombok:lombok:1.18.36"
-	annotationProcessor "org.projectlombok:lombok:1.18.36"
-	testCompileOnly "org.projectlombok:lombok:1.18.36"
-	testAnnotationProcessor "org.projectlombok:lombok:1.18.36"
+	compileOnly "org.projectlombok:lombok:1.18.40"
+	annotationProcessor "org.projectlombok:lombok:1.18.40"
+	testCompileOnly "org.projectlombok:lombok:1.18.40"
+	testAnnotationProcessor "org.projectlombok:lombok:1.18.40"
 
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

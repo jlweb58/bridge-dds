@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jre-noble
+FROM eclipse-temurin:25-jre-noble
 RUN mkdir /opt/app
 ENV SPRING_PROFILE=production
 ARG VERSION
