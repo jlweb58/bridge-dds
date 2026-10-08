@@ -79,23 +79,20 @@ class ConstrainedDealSampler {
         for (long a = 0; a < maxAttempts; a++) {
             attempts++;
 
-            // Fisher-Yates shuffle; shuffling an already shuffled array keeps the distribution uniform
-            for (int k = cards.length - 1; k > 0; k--) {
-                int j = rng.nextInt(k + 1);
-                Card tmp = cards[k];
-                cards[k] = cards[j];
-                cards[j] = tmp;
-            }
-
-            if (constrainedSeatsMatch()) {
+            if (constrainedSeatsMatch(rng)) {
+                shuffle(rng, seatConstraints.length * 13, cards.length);
                 return toDeal();
             }
         }
         return null;
     }
 
-    private boolean constrainedSeatsMatch() {
+    /**
+     * Shuffles lazily, one seat at a time, so that a rejected deal usually only costs 13 random draws.
+     */
+    private boolean constrainedSeatsMatch(Random rng) {
         for (int s = 0; s < seatConstraints.length; s++) {
+            shuffle(rng, s * 13, (s + 1) * 13);
             Hand hand = new Hand();
             for (int k = s * 13; k < (s + 1) * 13; k++) hand.add(cards[k]);
             if (!matcher.matches(handEvaluator, seatConstraints[s], hand)) {
@@ -103,6 +100,20 @@ class ConstrainedDealSampler {
             }
         }
         return true;
+    }
+
+    /**
+     * Forward Fisher-Yates step for positions [from, to): each position receives a uniformly chosen card
+     * from the not yet placed ones. Positions [0, to) are then a uniform random sample of the cards,
+     * whatever the array's previous order was.
+     */
+    private void shuffle(Random rng, int from, int to) {
+        for (int k = from; k < Math.min(to, cards.length - 1); k++) {
+            int j = k + rng.nextInt(cards.length - k);
+            Card tmp = cards[k];
+            cards[k] = cards[j];
+            cards[j] = tmp;
+        }
     }
 
     private Deal toDeal() {

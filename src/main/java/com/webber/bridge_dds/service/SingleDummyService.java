@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Service
@@ -35,10 +36,19 @@ public class SingleDummyService {
     private static final int MAX_SAMPLES = 2000;
 
     /**
-     * Rejection sampling budget: a batch of n samples may try at most n * MAX_ATTEMPTS_PER_SAMPLE deals.
-     * This bounds the work for very restrictive (or impossible) constraints.
+     * Rejection sampling budget: a batch of n samples may try at most n * MAX_ATTEMPTS_PER_SAMPLE deals
+     * (roughly 1M attempts per second per thread). This bounds the work for very restrictive constraints.
      */
-    private static final int MAX_ATTEMPTS_PER_SAMPLE = 2_000;
+    private static final int MAX_ATTEMPTS_PER_SAMPLE = 10_000;
+
+    /**
+     * All batches give up once this many attempts (summed over the batches) have not produced a single
+     * matching deal, so that impossible constraints fail fast.
+     */
+    private static final long NO_MATCH_ABORT_ATTEMPTS = 1_000_000;
+
+    /** Attempts per sampler call between checks of the shared progress. */
+    private static final long ATTEMPT_CHUNK = 10_000;
 
     private final DdsService ddsService;
 
@@ -99,6 +109,7 @@ public class SingleDummyService {
         Random master = new Random(seed);
 
         int batches = (requestedSamples + DDS_BATCH_SIZE - 1) / DDS_BATCH_SIZE;
+        SamplingProgress progress = new SamplingProgress(new AtomicLong(), new AtomicLong());
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<BatchOutcome>> futures = new ArrayList<>(batches);
@@ -115,6 +126,7 @@ public class SingleDummyService {
                         knownHands,
                         constraints,
                         evaluatorType,
+                        progress,
                         ddsStrainIndex,
                         ddsDeclarerIndex,
                         neededTricks,
@@ -175,6 +187,7 @@ public class SingleDummyService {
             Map<Player, List<Card>> knownHands,
             Map<Player, HandGenerationParameters> constraints,
             HandEvaluatorType evaluatorType,
+            SamplingProgress progress,
             int ddsStrainIndex,
             int ddsDeclarerIndex,
             int neededTricks,
@@ -188,10 +201,16 @@ public class SingleDummyService {
         long maxAttempts = batchCount * attemptsPerSample;
 
         List<String> pbns = new ArrayList<>(batchCount);
-        while (pbns.size() < batchCount) {
-            Deal deal = sampler.sample(rng, maxAttempts - sampler.attempts());
-            if (deal == null) break;
-            pbns.add(DealParsers.toPbn(deal));
+        while (pbns.size() < batchCount && sampler.attempts() < maxAttempts) {
+            if (progress.matches().get() == 0 && progress.attempts().get() >= NO_MATCH_ABORT_ATTEMPTS) break;
+
+            long before = sampler.attempts();
+            Deal deal = sampler.sample(rng, Math.min(ATTEMPT_CHUNK, maxAttempts - before));
+            progress.attempts().addAndGet(sampler.attempts() - before);
+            if (deal != null) {
+                progress.matches().incrementAndGet();
+                pbns.add(DealParsers.toPbn(deal));
+            }
         }
         long attempts = sampler.attempts();
 
@@ -326,6 +345,9 @@ public class SingleDummyService {
         double high = Math.min(1.0, center + margin);
         return new SingleDummyAnalyzeResponse.ConfidenceInterval95(low, high);
     }
+
+    /** Shared between all batches of one analysis. */
+    private record SamplingProgress(AtomicLong attempts, AtomicLong matches) { }
 
     private record BatchOutcome(int samples, int successes, long attempts, int[] histogram) { }
 
