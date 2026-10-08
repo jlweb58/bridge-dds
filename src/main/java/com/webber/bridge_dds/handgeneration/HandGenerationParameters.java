@@ -4,9 +4,14 @@ import com.webber.bridge_dds.model.Suit;
 
 import java.util.Map;
 
+/**
+ * Constraints for a single hand. {@code minPoints}/{@code maxPoints} may be null (unbounded).
+ * If neither {@code handDistribution} nor {@code condition} is given the shape is unconstrained;
+ * suits missing from {@code handDistribution} are unconstrained as well.
+ */
 public record HandGenerationParameters(
-        int minPoints,
-        int maxPoints,
+        Integer minPoints,
+        Integer maxPoints,
         HandDistribution handDistribution,
         HandGenerationCondition condition,
         Map<Suit,SuitQualityRequirement> suitQualityRequirements) {
@@ -16,8 +21,7 @@ public record HandGenerationParameters(
     }
 
     public HandGenerationParameters {
-           assert minPoints >= 0;
-           assert maxPoints >= minPoints;
-           assert handDistribution != null || condition != null;
+           assert minPoints == null || minPoints >= 0;
+           assert minPoints == null || maxPoints == null || maxPoints >= minPoints;
     }
 }

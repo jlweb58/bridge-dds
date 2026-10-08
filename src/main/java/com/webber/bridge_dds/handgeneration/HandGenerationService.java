@@ -4,7 +4,6 @@ import com.webber.bridge_dds.model.Card;
 import com.webber.bridge_dds.model.CardDeck;
 import com.webber.bridge_dds.model.Hand;
 import com.webber.bridge_dds.model.Player;
-import com.webber.bridge_dds.model.Rank;
 import com.webber.bridge_dds.model.Suit;
 import com.webber.bridge_dds.model.Vulnerability;
 import com.webber.bridge_dds.service.HandEvaluator;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -30,6 +28,8 @@ public class HandGenerationService {
     private final HandContractScoringService handContractScoringService;
 
     private final SuitQualityRequirementsValidator suitQualityRequirementsValidator;
+
+    private final HandParametersMatcher handParametersMatcher;
 
     private static final int NUMBER_OF_SAMPLES = 100;
 
@@ -68,10 +68,11 @@ public class HandGenerationService {
             Vulnerability.EW
     };
 
-    public HandGenerationService(HandEvaluatorFactory handEvaluatorFactory, HandContractScoringService handContractScoringService, SuitQualityRequirementsValidator suitQualityRequirementsValidator) {
+    public HandGenerationService(HandEvaluatorFactory handEvaluatorFactory, HandContractScoringService handContractScoringService, SuitQualityRequirementsValidator suitQualityRequirementsValidator, HandParametersMatcher handParametersMatcher) {
         this.handEvaluatorFactory = handEvaluatorFactory;
         this.handContractScoringService = handContractScoringService;
         this.suitQualityRequirementsValidator = suitQualityRequirementsValidator;
+        this.handParametersMatcher = handParametersMatcher;
     }
 
     public HandGenerationResponse generateHands(HandGenerationRequest request) {
@@ -158,7 +159,7 @@ public class HandGenerationService {
         for (int westCandidateAttempt = 1; westCandidateAttempt <= MAX_TOTAL_WEST_CANDIDATES_PER_HAND; westCandidateAttempt++) {
             Hand westHand = generateWestCandidate();
 
-            if (!validateDistribution(westParameters, westHand)) {
+            if (!handParametersMatcher.matchesDistribution(westParameters, westHand)) {
                 westDistributionFailures++;
 
                 if (log.isDebugEnabled() && westDistributionFailures <= REPRESENTATIVE_FAILURE_LOG_LIMIT) {
@@ -175,13 +176,13 @@ public class HandGenerationService {
                 continue;
             }
 
-            if (!validatePointCount(handEvaluator, westParameters, westHand)) {
+            if (!handParametersMatcher.matchesPointCount(handEvaluator, westParameters, westHand)) {
                 westPointFailures++;
                 logGenerationProgressIfNeeded(westCandidateAttempt, validWestHands, eastAttempts, westDistributionFailures, westPointFailures, westSuitQualityFailures);
                 continue;
             }
 
-            if (!suitQualityRequirementsValidator.satisfies(westParameters, westHand)) {
+            if (!handParametersMatcher.matchesSuitQuality(westParameters, westHand)) {
                 westSuitQualityFailures++;
                 logGenerationProgressIfNeeded(westCandidateAttempt, validWestHands, eastAttempts, westDistributionFailures, westPointFailures, westSuitQualityFailures);
                 continue;
@@ -200,7 +201,7 @@ public class HandGenerationService {
 
                 Hand eastHand = dealRandomHandFrom(remainingCards);
 
-                if (!validateGeneratedHand(handEvaluator, eastParameters, eastHand)) {
+                if (!handParametersMatcher.matches(handEvaluator, eastParameters, eastHand)) {
                     continue;
                 }
 
@@ -321,7 +322,7 @@ public class HandGenerationService {
 
         for (int attempt = 0; attempt < MAX_NORTH_ATTEMPTS_PER_EAST_HAND; attempt++) {
             Hand northHand = dealRandomHandFrom(remainingCards);
-            if (validateGeneratedHand(handEvaluator, northParameters, northHand)) {
+            if (handParametersMatcher.matches(handEvaluator, northParameters, northHand)) {
                 return northHand;
             }
         }
@@ -363,41 +364,6 @@ public class HandGenerationService {
         }
 
         return hand;
-    }
-
-    private boolean validateGeneratedHand(HandEvaluator handEvaluator, HandGenerationParameters parameters, Hand hand) {
-        assert hand != null;
-        assert hand.size() == 13;
-        return validateDistribution(parameters, hand)
-                && validatePointCount(handEvaluator, parameters, hand)
-                && suitQualityRequirementsValidator.satisfies(parameters, hand);
-    }
-
-    private boolean validateDistribution(HandGenerationParameters parameters, Hand hand) {
-        if (parameters.condition() != null) {
-            return parameters.condition().matches(hand);
-        }
-
-        EnumSet<Rank> spades = hand.ranksForSuit(Suit.SPADES);
-        EnumSet<Rank> hearts = hand.ranksForSuit(Suit.HEARTS);
-        EnumSet<Rank> diamonds = hand.ranksForSuit(Suit.DIAMONDS);
-        EnumSet<Rank> clubs = hand.ranksForSuit(Suit.CLUBS);
-        HandDistribution handDistribution = parameters.handDistribution();
-        return validateSuitLengthRange(handDistribution.suitLengths().get(Suit.SPADES), spades)
-                && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.HEARTS), hearts)
-                && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.DIAMONDS), diamonds)
-                && validateSuitLengthRange(handDistribution.suitLengths().get(Suit.CLUBS), clubs);
-
-    }
-
-    private boolean validateSuitLengthRange(SuitLengthRange range, EnumSet<Rank> cards) {
-        int size = cards.size();
-        return size >= range.min() && size <= range.max();
-    }
-
-    private boolean validatePointCount(HandEvaluator handEvaluator, HandGenerationParameters parameters, Hand hand) {
-        double pointCount = handEvaluator.evaluate(hand);
-        return pointCount >= parameters.minPoints() && pointCount <= parameters.maxPoints();
     }
 
 }

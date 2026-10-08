@@ -2,6 +2,8 @@ package com.webber.bridge_dds.service;
 
 import com.webber.bridge_dds.controller.SingleDummyAnalyzeRequest;
 import com.webber.bridge_dds.controller.SingleDummyAnalyzeResponse;
+import com.webber.bridge_dds.handgeneration.HandGenerationParameters;
+import com.webber.bridge_dds.handgeneration.HandParametersMatcher;
 import com.webber.bridge_dds.jna.struct.DDTableResults;
 import com.webber.bridge_dds.jna.struct.DDTableDealsPBN;
 import com.webber.bridge_dds.model.Card;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -23,100 +26,126 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+@Slf4j
 @Service
 public class SingleDummyService {
 
     private static final int DDS_BATCH_SIZE = DDTableDealsPBN.MAXNOOFTABLES;
 
+    private static final int MAX_SAMPLES = 2000;
+
+    /**
+     * Rejection sampling budget: a batch of n samples may try at most n * MAX_ATTEMPTS_PER_SAMPLE deals.
+     * This bounds the work for very restrictive (or impossible) constraints.
+     */
+    private static final int MAX_ATTEMPTS_PER_SAMPLE = 2_000;
+
     private final DdsService ddsService;
 
-    public SingleDummyService(DdsService ddsService) {
+    private final HandEvaluatorFactory handEvaluatorFactory;
+
+    private final HandParametersMatcher handParametersMatcher;
+
+    public SingleDummyService(DdsService ddsService, HandEvaluatorFactory handEvaluatorFactory, HandParametersMatcher handParametersMatcher) {
         this.ddsService = ddsService;
+        this.handEvaluatorFactory = handEvaluatorFactory;
+        this.handParametersMatcher = handParametersMatcher;
     }
 
     public SingleDummyAnalyzeResponse analyze(SingleDummyAnalyzeRequest req) {
         long start = System.currentTimeMillis();
         validate(req);
 
-        int samples = req.samples();
         // protect the server from attack via a high number of samples
-        if (samples > 2000) {
-            samples = 2000;
-        }
+        int requestedSamples = Math.min(req.samples(), MAX_SAMPLES);
         int neededTricks = req.contract().level() + 6;
 
         Player declarer = req.declarer();
         Player dummy = req.dummy();
-        Player[] defenders = defendersOf(declarer, dummy);
+        Map<Player, HandGenerationParameters> constraints =
+                req.constraints() == null ? Map.of() : req.constraints();
+        HandEvaluatorType evaluatorType = parseEvaluator(req.evaluator());
 
-        List<Card> declarerCards = parseCards(req.hands().get(declarer), "hands[" + declarer + "]");
-        List<Card> dummyCards = parseCards(req.hands().get(dummy), "hands[" + dummy + "]");
+        Map<Player, List<Card>> knownHands = new EnumMap<>(Player.class);
+        knownHands.put(declarer, parseHand(req.hands().get(declarer), "hands[" + declarer + "]"));
 
-        EnumSet<Card> known = EnumSet.noneOf(Card.class);
-        known.addAll(declarerCards);
-        known.addAll(dummyCards);
-
-        if (known.size() != 26) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Expected exactly 26 distinct cards in declarer+dummy; got " + known.size()
-            );
+        List<String> dummyCodes = req.hands().get(dummy);
+        boolean dummyKnown = dummyCodes != null && !dummyCodes.isEmpty();
+        if (dummyKnown) {
+            if (constraints.containsKey(dummy)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Specify either hands[" + dummy + "] or constraints[" + dummy + "], not both");
+            }
+            knownHands.put(dummy, parseHand(dummyCodes, "hands[" + dummy + "]"));
+        } else if (!constraints.containsKey(dummy)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "hands[" + dummy + "] or constraints[" + dummy + "] is required");
         }
 
-        List<Card> unknown = new ArrayList<>(52 - known.size());
-        for (Card c : Card.values()) {
-            if (!known.contains(c)) unknown.add(c);
+        EnumSet<Card> known = EnumSet.noneOf(Card.class);
+        knownHands.values().forEach(known::addAll);
+        if (known.size() != 13 * knownHands.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "The specified hands contain duplicate cards");
         }
 
         int ddsStrainIndex = req.contract().denomination().ddsIndex();
+        int ddsDeclarerIndex = declarerToDdsHandIndex(declarer);
 
         int[] trumpFilter = {1, 1, 1, 1, 1};
-        trumpFilter[ddsStrainIndex] = 0; // compute only this denomination (verify behavior in your DDS build)
-
+        trumpFilter[ddsStrainIndex] = 0; // compute only this denomination
 
         long seed = (req.seed() != null) ? req.seed() : System.nanoTime();
         Random master = new Random(seed);
 
-        int batches = (samples + DDS_BATCH_SIZE - 1) / DDS_BATCH_SIZE;
+        int batches = (requestedSamples + DDS_BATCH_SIZE - 1) / DDS_BATCH_SIZE;
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<BatchOutcome>> futures = new ArrayList<>(batches);
 
             for (int b = 0; b < batches; b++) {
                 int batchStart = b * DDS_BATCH_SIZE;
-                int batchCount = Math.min(DDS_BATCH_SIZE, samples - batchStart);
+                int batchCount = Math.min(DDS_BATCH_SIZE, requestedSamples - batchStart);
 
                 long batchSeed = master.nextLong();
 
                 Callable<BatchOutcome> task = () -> runBatch(
                         batchCount,
                         batchSeed,
-                        unknown,
-                        declarer,
-                        dummy,
-                        defenders[0],
-                        defenders[1],
+                        knownHands,
+                        constraints,
+                        evaluatorType,
                         ddsStrainIndex,
-                        declarerToDdsHandIndex(declarer),
+                        ddsDeclarerIndex,
                         neededTricks,
-                        declarerCards,
-                        dummyCards,
                         trumpFilter
                 );
 
                 futures.add(executor.submit(task));
             }
 
+            int samples = 0;
             int successes = 0;
+            long attempts = 0;
             int[] combinedHistogram = new int[14];
 
             for (Future<BatchOutcome> f : futures) {
                 BatchOutcome o = f.get();
+                samples += o.samples();
                 successes += o.successes();
+                attempts += o.attempts();
                 int[] h = o.histogram();
                 for (int i = 0; i < h.length; i++) {
                     combinedHistogram[i] += h[i];
                 }
+            }
+
+            if (samples == 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "No deals matching the constraints could be generated after " + attempts
+                                + " attempts. The constraints may be too restrictive or incompatible with the known hands."
+                );
             }
 
             Map<Integer, Integer> histogram = new HashMap<>();
@@ -127,10 +156,14 @@ public class SingleDummyService {
             double p = successes / (double) samples;
             SingleDummyAnalyzeResponse.ConfidenceInterval95 ci = wilson95(successes, samples);
             long end = System.currentTimeMillis();
-            System.out.printf("Single dummy analysis took %dms%n", end - start);
+            log.info("Single dummy analysis took {}ms: {} of {} requested samples, {} deal attempts",
+                    end - start, samples, requestedSamples, attempts);
             return new SingleDummyAnalyzeResponse(samples, successes, p, ci, histogram);
         } catch (ResponseStatusException ex) {
             throw ex;
+        } catch (java.util.concurrent.ExecutionException ex) {
+            if (ex.getCause() instanceof ResponseStatusException rse) throw rse;
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Single dummy analysis failed", ex);
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Single dummy analysis failed", ex);
         }
@@ -139,74 +172,54 @@ public class SingleDummyService {
     private BatchOutcome runBatch(
             int batchCount,
             long seed,
-            List<Card> unknownDeck,
-            Player declarer,
-            Player dummy,
-            Player def1,
-            Player def2,
+            Map<Player, List<Card>> knownHands,
+            Map<Player, HandGenerationParameters> constraints,
+            HandEvaluatorType evaluatorType,
             int ddsStrainIndex,
             int ddsDeclarerIndex,
             int neededTricks,
-            List<Card> declarerCards,
-            List<Card> dummyCards,
             int[] trumpFilter
     ) {
         Random rng = new Random(seed);
+        ConstrainedDealSampler sampler = new ConstrainedDealSampler(
+                knownHands, constraints, handParametersMatcher, handEvaluatorFactory.fromType(evaluatorType));
+
+        long attemptsPerSample = sampler.hasConstraints() ? MAX_ATTEMPTS_PER_SAMPLE : 1;
+        long maxAttempts = batchCount * attemptsPerSample;
 
         List<String> pbns = new ArrayList<>(batchCount);
-
-        // Convert unknown deck to array once and prepare permutation buffer
-        Card[] unknownArr = unknownDeck.toArray(new Card[0]);
-        int m = unknownArr.length;
-        int[] perm = new int[m];
-
-        for (int i = 0; i < batchCount; i++) {
-            // initialize permutation
-            for (int k = 0; k < m; k++) perm[k] = k;
-
-            // Fisher-Yates shuffle on indices
-            for (int k = m - 1; k > 0; k--) {
-                int j = rng.nextInt(k + 1);
-                int tmp = perm[k];
-                perm[k] = perm[j];
-                perm[j] = tmp;
-            }
-
-            Deal deal = new Deal();
-            deal.setFirst(Player.NORTH); // arbitrary; DDS just needs consistent seat assignments
-
-            for (Card c : declarerCards) deal.give(declarer, c);
-            for (Card c : dummyCards) deal.give(dummy, c);
-
-            // give first 13 permuted cards to def1
-            for (int k = 0; k < 13; k++) deal.give(def1, unknownArr[perm[k]]);
-            // next 13 to def2
-            for (int k = 13; k < 26; k++) deal.give(def2, unknownArr[perm[k]]);
-
+        while (pbns.size() < batchCount) {
+            Deal deal = sampler.sample(rng, maxAttempts - sampler.attempts());
+            if (deal == null) break;
             pbns.add(DealParsers.toPbn(deal));
         }
+        long attempts = sampler.attempts();
 
-            DdsService.DDSBatchResult raw = ddsService.calculateFromPbnBatch(pbns, 0, trumpFilter);
-            if (raw.returnCode() != 1) {
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "DDS CalcAllTablesPBN failed with return code " + raw.returnCode()
-                );
-            }
+        int successes = 0;
+        int[] histogram = new int[14];
 
-            int successes = 0;
-            int[] histogram = new int[14];
+        if (pbns.isEmpty()) {
+            return new BatchOutcome(0, 0, attempts, histogram);
+        }
 
-            for (int i = 0; i < batchCount; i++) {
-                DDTableResults table = raw.results().results[i];
-                int tricks = table.get(ddsStrainIndex, ddsDeclarerIndex);
-                if (tricks < 0) tricks = 0; // defensive, but DDS should return 0..13
-                if (tricks > 13) tricks = 13;
-                histogram[tricks]++;
-                if (tricks >= neededTricks) successes++;
-            }
+        DdsService.DDSBatchResult raw = ddsService.calculateFromPbnBatch(pbns, 0, trumpFilter);
+        if (raw.returnCode() != 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "DDS CalcAllTablesPBN failed with return code " + raw.returnCode()
+            );
+        }
 
-            return new BatchOutcome(successes, histogram);
+        for (int i = 0; i < pbns.size(); i++) {
+            DDTableResults table = raw.results().results[i];
+            int tricks = table.get(ddsStrainIndex, ddsDeclarerIndex);
+            if (tricks < 0) tricks = 0; // defensive, but DDS should return 0..13
+            if (tricks > 13) tricks = 13;
+            histogram[tricks]++;
+            if (tricks >= neededTricks) successes++;
+        }
+
+        return new BatchOutcome(pbns.size(), successes, attempts, histogram);
     }
 
 
@@ -226,14 +239,50 @@ public class SingleDummyService {
         }
         if (req.hands() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "\"hands\" is required");
         if (req.samples() <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "\"samples\" must be > 0");
+        if (req.constraints() != null) {
+            if (req.constraints().containsKey(req.declarer())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "constraints[" + req.declarer() + "] not allowed: the declarer hand must be fully specified");
+            }
+            req.constraints().forEach(SingleDummyService::validateConstraint);
+        }
     }
 
-    private static Player[] defendersOf(Player declarer, Player dummy) {
-        List<Player> defs = new ArrayList<>(2);
-        for (Player p : Player.values()) {
-            if (p != declarer && p != dummy) defs.add(p);
+    private static void validateConstraint(Player player, HandGenerationParameters c) {
+        String field = "constraints[" + player + "]";
+        if (c == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " must not be null");
+        if (c.minPoints() != null && c.minPoints() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + ".minPoints must be >= 0");
         }
-        return new Player[]{defs.get(0), defs.get(1)};
+        if (c.minPoints() != null && c.maxPoints() != null && c.maxPoints() < c.minPoints()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + ".maxPoints must be >= minPoints");
+        }
+        if (c.handDistribution() != null && c.handDistribution().suitLengths() != null) {
+            c.handDistribution().suitLengths().forEach((suit, range) -> {
+                if (range == null || range.min() < 0 || range.max() > 13 || range.min() > range.max()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            field + ".handDistribution[" + suit + "] must satisfy 0 <= min <= max <= 13");
+                }
+            });
+        }
+    }
+
+    private static HandEvaluatorType parseEvaluator(String evaluator) {
+        if (evaluator == null) return HandEvaluatorType.STANDARD;
+        try {
+            return HandEvaluatorType.fromId(evaluator);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+        }
+    }
+
+    private static List<Card> parseHand(List<String> codes, String fieldName) {
+        List<Card> cards = parseCards(codes, fieldName);
+        if (cards.size() != 13 || EnumSet.copyOf(cards).size() != 13) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    fieldName + " must contain exactly 13 distinct cards; got " + cards.size());
+        }
+        return cards;
     }
 
     private static List<Card> parseCards(List<String> codes, String fieldName) {
@@ -278,6 +327,6 @@ public class SingleDummyService {
         return new SingleDummyAnalyzeResponse.ConfidenceInterval95(low, high);
     }
 
-    private record BatchOutcome(int successes, int[] histogram) { }
+    private record BatchOutcome(int samples, int successes, long attempts, int[] histogram) { }
 
 }
