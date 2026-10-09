@@ -63,7 +63,12 @@ public class DealParsers {
     }
 
     private static String handToPbn(Deal deal, Player player) {
-        var view = deal.hand(player).view(); // Map<Suit, Set<Rank>>
+        return handToPbn(deal.hand(player));
+    }
+
+    /** A single hand in PBN notation, e.g. "AK42.K32.Q32.432" (spades.hearts.diamonds.clubs). */
+    public static String handToPbn(Hand hand) {
+        var view = hand.view(); // Map<Suit, Set<Rank>>
         return suitToPbn(view, Suit.SPADES) + "."
                 + suitToPbn(view, Suit.HEARTS) + "."
                 + suitToPbn(view, Suit.DIAMONDS) + "."

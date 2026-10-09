@@ -11,6 +11,8 @@ import com.webber.bridge_dds.model.Deal;
 import com.webber.bridge_dds.model.Player;
 import com.webber.bridge_dds.parser.DealParsers;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -30,6 +32,12 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @Service
 public class SingleDummyService {
+
+    /**
+     * Logs every analysed sample at DEBUG. Switch off with
+     * {@code logging.level.com.webber.bridge_dds.service.SingleDummyService.samples=INFO}.
+     */
+    private static final Logger SAMPLE_LOG = LoggerFactory.getLogger(SingleDummyService.class.getName() + ".samples");
 
     private static final int DDS_BATCH_SIZE = DDTableDealsPBN.MAXNOOFTABLES;
 
@@ -111,6 +119,10 @@ public class SingleDummyService {
         int batches = (requestedSamples + DDS_BATCH_SIZE - 1) / DDS_BATCH_SIZE;
         SamplingProgress progress = new SamplingProgress(new AtomicLong(), new AtomicLong());
 
+        // batches run concurrently, so sample lines are interleaved; sort by sample number if needed
+        SAMPLE_LOG.debug("Samples for {}{} by {} (needs {} tricks), seed {}: sample, South, West, North, East, tricks",
+                req.contract().level(), req.contract().denomination(), declarer, neededTricks, seed);
+
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<BatchOutcome>> futures = new ArrayList<>(batches);
 
@@ -121,6 +133,7 @@ public class SingleDummyService {
                 long batchSeed = master.nextLong();
 
                 Callable<BatchOutcome> task = () -> runBatch(
+                        batchStart,
                         batchCount,
                         batchSeed,
                         knownHands,
@@ -182,6 +195,7 @@ public class SingleDummyService {
     }
 
     private BatchOutcome runBatch(
+            int batchStart,
             int batchCount,
             long seed,
             Map<Player, List<Card>> knownHands,
@@ -200,6 +214,7 @@ public class SingleDummyService {
         long attemptsPerSample = sampler.hasConstraints() ? MAX_ATTEMPTS_PER_SAMPLE : 1;
         long maxAttempts = batchCount * attemptsPerSample;
 
+        List<Deal> deals = new ArrayList<>(batchCount);
         List<String> pbns = new ArrayList<>(batchCount);
         while (pbns.size() < batchCount && sampler.attempts() < maxAttempts) {
             if (progress.matches().get() == 0 && progress.attempts().get() >= NO_MATCH_ABORT_ATTEMPTS) break;
@@ -209,6 +224,7 @@ public class SingleDummyService {
             progress.attempts().addAndGet(sampler.attempts() - before);
             if (deal != null) {
                 progress.matches().incrementAndGet();
+                deals.add(deal);
                 pbns.add(DealParsers.toPbn(deal));
             }
         }
@@ -236,11 +252,23 @@ public class SingleDummyService {
             if (tricks > 13) tricks = 13;
             histogram[tricks]++;
             if (tricks >= neededTricks) successes++;
+            logSample(batchStart + i + 1, deals.get(i), tricks);
         }
 
         return new BatchOutcome(pbns.size(), successes, attempts, histogram);
     }
 
+
+    private static void logSample(int sampleNumber, Deal deal, int tricks) {
+        if (!SAMPLE_LOG.isDebugEnabled()) return;
+        SAMPLE_LOG.debug("Sample {}, S {}, W {}, N {}, E {}, tricks {}",
+                sampleNumber,
+                DealParsers.handToPbn(deal.hand(Player.SOUTH)),
+                DealParsers.handToPbn(deal.hand(Player.WEST)),
+                DealParsers.handToPbn(deal.hand(Player.NORTH)),
+                DealParsers.handToPbn(deal.hand(Player.EAST)),
+                tricks);
+    }
 
     private static void validate(SingleDummyAnalyzeRequest req) {
         if (req == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
