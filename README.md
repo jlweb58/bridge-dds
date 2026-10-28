@@ -11,5 +11,3 @@ Then run it with `docker run -d  --restart unless-stopped --name bridge-dds -p90
 
 The docker  image includes required native libraries.
 
-TBD: automated build and deployment via GitHub
-
